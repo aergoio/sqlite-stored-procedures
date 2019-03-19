@@ -279,6 +279,53 @@ int main(){
   db_check_int("select @price<3.5", 0);
 
 
+
+  // DECLARE @variable {affinity}
+
+  db_execute("declare @pre1 INTEGER");
+  db_execute("declare @pre2 INTEGER,@pre3 INTEGER , @pre4  INTEGER ");
+  db_execute("set @pre1,@pre2,@pre3,@pre4 = '5','5','5','5' ");
+  db_check_int("select typeof(@pre1)='integer'", 1);
+  db_check_int("select typeof(@pre2)='integer'", 1);
+  db_check_int("select typeof(@pre3)='integer'", 1);
+  db_check_int("select typeof(@pre4)='integer'", 1);
+
+  db_execute("set @new1,@new2,@new3,@new4 = '5','5','5','5' ");
+  db_check_int("select typeof(@new1)='text'", 1);
+  db_check_int("select typeof(@new2)='text'", 1);
+  db_check_int("select typeof(@new3)='text'", 1);
+  db_check_int("select typeof(@new4)='text'", 1);
+
+  db_execute("declare @pre11 TEXT, @pre12 INTEGER, @pre13 FLOAT");
+  db_execute("set @pre11,@pre12,@pre13 = '5.0','5.0','5.0' ");
+  db_check_int("select typeof(@pre11)='text'", 1);
+  db_check_int("select typeof(@pre12)='integer'", 1);
+  db_check_int("select typeof(@pre13)='real'", 1);
+  db_check_int("select @pre11='5.0'", 1);
+  db_check_int("select @pre12=5", 1);
+  db_check_int("select @pre13=5.0", 1);
+
+  db_execute("declare @new5");
+  db_check_int("select typeof(@new5)='null'", 1);
+  db_check_int("select @new5 is null", 1);
+
+  db_execute("declare @new6 float");
+  db_check_int("select typeof(@new6)='null'", 1);
+  db_check_int("select @new6 is null", 1);
+
+  db_execute("declare @new11, @new12 TEXT");
+
+  // already declared variable
+  db_catch("declare @pre2 TEXT");
+
+  // variables with the same name
+  db_catch("declare @new21 TEXT, @new21 TEXT");
+  db_catch("declare @new22 TEXT, @new22 INTEGER");
+  db_catch("declare @new23 TEXT, @new23");
+  db_catch("declare @new24, @new24 TEXT");
+  db_catch("declare @new25, @new25");
+
+
   sqlite3_close(db);
   puts("OK. All tests pass!");
   return 0;
