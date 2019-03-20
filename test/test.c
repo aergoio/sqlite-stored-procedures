@@ -80,40 +80,100 @@ void db_execute_many(char *cmd, product *list, int count){
 
 void db_check_int(char *cmd, int expected){
   sqlite3_stmt *stmt=0;
-  char *zErrMsg=0;  // *zTail=0;
+  const char *zTail=0;
   int rc, returned;
 
-  rc = sqlite3_prepare(db, cmd, -1, &stmt, NULL);  //&zTail);
-  if( rc!=SQLITE_OK ){
-    printf("FAIL %d: %s\n\tsql: %s\n", rc, zErrMsg, cmd);
-    sqlite3_free(zErrMsg);
-    exit(1);
-  }
+  do{
 
-  rc = sqlite3_step(stmt);
-  if( rc!=SQLITE_ROW ){
-    printf("FAIL %d: no row returned\nsql: %s\n", rc, cmd);
-    exit(1);
-  }
+    rc = sqlite3_prepare(db, cmd, -1, &stmt, &zTail);
+    if( rc!=SQLITE_OK ){
+      printf("FAIL %d: prepare\n\tsql: %s\n", rc, cmd);
+      exit(1);
+    }
 
-  if( sqlite3_column_count(stmt)!=1 ){
-    printf("FAIL: returned %d columns\n\tsql: %s\n", sqlite3_column_count(stmt), cmd);
-    exit(1);
-  }
+    rc = sqlite3_step(stmt);
 
-  returned = sqlite3_column_int(stmt, 0);
-  if( returned!=expected ){
-    printf("FAIL: returned=%d expected=%d\n\tsql: %s\n", returned, expected, cmd);
-    exit(1);
-  }
+    if( zTail && zTail[0] ){
 
-  rc = sqlite3_step(stmt);
-  if( rc!=SQLITE_DONE ){
-    printf("FAIL: additional row returned\n\tsql: %s\n", cmd);
-    exit(1);
-  }
+      if( rc!=SQLITE_DONE ){
+        printf("FAIL %d: multi command returned a row\nsql: %s\n", rc, cmd);
+        exit(1);
+      }
 
-  sqlite3_finalize(stmt);
+      cmd = (char*) zTail;
+
+    } else {
+
+      if( rc!=SQLITE_ROW ){
+        printf("FAIL %d: no row returned\nsql: %s\n", rc, cmd);
+        exit(1);
+      }
+
+      if( sqlite3_column_count(stmt)!=1 ){
+        printf("FAIL: returned %d columns\n\tsql: %s\n", sqlite3_column_count(stmt), cmd);
+        exit(1);
+      }
+
+      returned = sqlite3_column_int(stmt, 0);
+      if( returned!=expected ){
+        printf("FAIL: returned=%d expected=%d\n\tsql: %s\n", returned, expected, cmd);
+        exit(1);
+      }
+
+      rc = sqlite3_step(stmt);
+      if( rc!=SQLITE_DONE ){
+        printf("FAIL: additional row returned\n\tsql: %s\n", cmd);
+        exit(1);
+      }
+
+      cmd = NULL;
+
+    }
+
+    sqlite3_finalize(stmt);
+
+  } while( cmd );
+
+}
+
+void db_check_empty(char *cmd){
+  sqlite3_stmt *stmt=0;
+  const char *zTail=0;
+  int rc;
+
+  do{
+
+    rc = sqlite3_prepare(db, cmd, -1, &stmt, &zTail);
+    if( rc!=SQLITE_OK ){
+      printf("FAIL %d: prepare\n\tsql: %s\n", rc, cmd);
+      exit(1);
+    }
+
+    rc = sqlite3_step(stmt);
+
+    if( zTail && zTail[0] ){
+
+      if( rc!=SQLITE_DONE ){
+        printf("FAIL %d: multi command returned a row\nsql: %s\n", rc, cmd);
+        exit(1);
+      }
+
+      cmd = (char*) zTail;
+
+    } else {
+
+      if( rc==SQLITE_ROW ){
+        printf("FAIL: unexpected row returned\nsql: %s\n", cmd);
+        exit(1);
+      }
+
+      cmd = NULL;
+
+    }
+
+    sqlite3_finalize(stmt);
+
+  } while( cmd );
 
 }
 
@@ -324,6 +384,210 @@ int main(){
   db_catch("declare @new23 TEXT, @new23");
   db_catch("declare @new24, @new24 TEXT");
   db_catch("declare @new25, @new25");
+
+
+
+  // IF blocks
+
+  db_execute("set @aa = 15");
+  db_execute("set @bb = 25");
+
+  // first expression is true
+
+  db_execute("if @aa > 10 then");
+  db_check_int("select @aa", 15);
+  db_execute("else");
+  db_check_empty("select @aa");
+  db_execute("endif");
+  db_check_int("select @aa", 15);
+
+  // first expression is false
+
+  db_execute("if @aa < 10 then");
+  db_check_empty("select @aa");
+  db_execute("else");
+  db_check_int("select @aa", 15);
+  db_execute("endif");
+  db_check_int("select @aa", 15);
+
+  // first expression is true
+
+  db_check_int("if @aa > 10 then select @aa", 15);
+  db_check_int("select @bb", 25);
+  db_check_empty("else select @aa");
+  db_check_empty("select @bb");
+  db_execute("endif");
+  db_check_int("select @aa", 15);
+  db_check_int("select @bb", 25);
+
+  // first expression is false
+
+  db_check_empty("if @aa < 10 then select @aa");
+  db_check_empty("select @bb");
+  db_check_int("else select @aa", 15);
+  db_check_int("select @bb", 25);
+  db_execute("endif");
+  db_check_int("select @aa", 15);
+
+  // nested IF
+
+  db_execute("if @aa > 10 then");
+  db_check_int("select @aa", 15);
+    db_execute("if 5 < 3 then");
+    db_check_empty("select @bb");
+    db_execute("endif");
+  db_check_int("select @aa", 15);
+    db_execute("if 5 > 3 then");
+    db_check_int("select @bb", 25);
+    db_execute("endif");
+  db_check_int("select @aa", 15);
+  db_execute("else");
+  db_check_empty("select @aa");
+    db_execute("if 7 < 3 then");
+    db_check_empty("select @bb");
+    db_execute("endif");
+  db_check_empty("select @aa");
+    db_execute("if 7 > 3 then");
+    db_check_empty("select @bb");
+    db_execute("endif");
+  db_check_empty("select @aa");
+  db_execute("endif");
+
+  db_check_int("select @aa", 15);
+
+  // nested IF with ELSE
+
+  db_execute("if @aa > 10 then");
+  db_check_int("select @aa", 15);
+    db_execute("if 5 < 3 then");
+    db_check_empty("select @bb");
+    db_execute("else");
+    db_check_int("select @bb", 25);
+    db_execute("endif");
+  db_check_int("select @aa", 15);
+    db_execute("if 5 > 3 then");
+    db_check_int("select @bb", 25);
+    db_execute("else");
+    db_check_empty("select @bb");
+    db_execute("endif");
+  db_check_int("select @aa", 15);
+  db_execute("else");
+  db_check_empty("select @aa");
+    db_execute("if 7 < 3 then");
+    db_check_empty("select @bb");
+    db_execute("else");
+    db_check_empty("select @bb");
+    db_execute("endif");
+  db_check_empty("select @aa");
+    db_execute("if 7 > 3 then");
+    db_check_empty("select @bb");
+    db_execute("else");
+    db_check_empty("select @bb");
+    db_execute("endif");
+  db_check_empty("select @aa");
+  db_execute("endif");
+
+  db_check_int("select @aa", 15);
+
+
+  // ELSEIF - first expression is true
+
+  db_execute("if @aa > 10 then");
+  db_check_int("select @aa", 15);
+  db_execute("elseif @aa > 5 then");
+  db_check_empty("select @aa");
+  db_execute("elseif @aa > 7 then");
+  db_check_empty("select @aa");
+  db_execute("else");
+  db_check_empty("select @aa");
+  db_execute("endif");
+
+  db_check_int("select @aa", 15);
+
+  db_check_int("if @aa > 10 then select @aa", 15);
+  db_check_int("select @bb", 25);
+  db_check_empty("elseif @aa > 5 then select @aa");
+  db_check_empty("select @bb");
+  db_check_empty("elseif @aa > 7 then select @aa");
+  db_check_empty("select @bb");
+  db_check_empty("else select @aa");
+  db_check_empty("select @bb");
+  db_execute("endif");
+
+  db_check_int("select @aa", 15);
+
+
+  // ELSEIF - first expression is false
+
+  db_execute("if @aa < 10 then");
+  db_check_empty("select @aa");
+  db_execute("elseif @aa > 10 then");
+  db_check_int("select @aa", 15);
+  db_execute("elseif @aa > 5 then");
+  db_check_empty("select @bb");
+  db_execute("else");
+  db_check_empty("select @bb");
+  db_execute("endif");
+
+  db_check_int("select @aa", 15);
+
+  db_execute("if @aa < 10 then");
+  db_check_empty("select @aa");
+  db_execute("elseif @aa < 12 then");
+  db_check_empty("select @bb");
+  db_execute("elseif @aa > 5 then");
+  db_check_int("select @aa", 15);
+  db_execute("else");
+  db_check_empty("select @bb");
+  db_execute("endif");
+
+  db_check_int("select @aa", 15);
+
+  db_check_empty("if @aa < 10 then select @aa");
+  db_check_empty("select @bb");
+  db_check_int("elseif @aa > 10 then select @aa", 15);
+  db_check_int("select @bb", 25);
+  db_check_empty("else select @aa");
+  db_check_empty("select @bb");
+  db_execute("endif");
+
+  db_check_int("select @aa", 15);
+
+  db_check_empty("if @aa < 10 then select @aa");
+  db_check_empty("select @bb");
+  db_check_empty("elseif @aa < 9 then select @aa");
+  db_check_empty("select @bb");
+  db_check_empty("elseif @aa < 8 then select @aa");
+  db_check_empty("select @bb");
+  db_check_int("elseif @aa > 10 then select @aa", 15);
+  db_check_int("select @bb", 25);
+  db_check_empty("elseif @aa > 11 then select @aa");
+  db_check_empty("select @bb");
+  db_check_empty("elseif @aa < 7 then select @aa");
+  db_check_empty("select @bb");
+  db_check_empty("else select @aa");
+  db_check_empty("select @bb");
+  db_execute("endif");
+
+  db_check_int("select @aa", 15);
+
+  db_check_empty("if @aa < 10 then select @aa");
+  db_check_empty("select @bb");
+  db_check_empty("elseif @aa < 9 then select @aa");
+  db_check_empty("select @bb");
+  db_check_empty("elseif @aa < 8 then select @aa");
+  db_check_empty("select @bb");
+  db_check_int("elseif @aa > 10 then select @aa", 15);
+  db_check_int("select @bb", 25);
+  db_check_empty("elseif @aa < 7 then select @aa");
+  db_check_empty("select @bb");
+  db_check_empty("elseif @aa > 11 then select @aa");
+  db_check_empty("select @bb");
+  db_check_empty("else select @aa");
+  db_check_empty("select @bb");
+  db_execute("endif");
+
+  db_check_int("select @aa", 15);
 
 
   sqlite3_close(db);
