@@ -32,7 +32,7 @@ else
         LIBNICK1 = libsqlite3.so.0
         LIBNICK2 = libsqlite3.so
         SONAME   = libsqlite3.so.0
-        prefix  ?= /usr
+        prefix  ?= /usr/local
     endif
     LIBPATH  = $(prefix)/lib
     INCPATH  = $(prefix)/include
@@ -123,9 +123,11 @@ endif
 clean:
 	rm -f *.o lib$(SHORT).a lib$(SHORT).dylib $(LIBRARY) $(LIBNICK1) $(LIBNICK2) $(SSHELL)
 
-test: test/test.c
-	$(CC) $< -o test/$@ -L. -lsqlite3
-	test/$@
+test: test/runtest
+	cd test && LD_LIBRARY_PATH=.. ./runtest
+
+test/runtest: test/test.c
+	$(CC) $< -o $@ -L. -lsqlite3
 
 test2: test/test.py
 ifeq ($(OS),Windows_NT)
