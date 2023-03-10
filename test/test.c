@@ -29,7 +29,7 @@ some tests:
 - RETURN with many arguments (fixed and variable)
 - RETURN with 1 array argument
 - RETURN with 1 array of arrays
-- RETURN with expression (not yet supported)
+- RETURN with expression
 
 - SET with ARRAY literal
 - SET with ARRAY variable
@@ -234,9 +234,25 @@ int main(){
   );
 #endif
 
-  // RETURN with expression (not yet supported)
 
-  //db_execute("CREATE PROCEDURE sum(@a, @b) BEGIN RETURN @a + @b; END;");
+  // RETURN with expression
+
+  db_execute("CREATE PROCEDURE sum(@a, @b) BEGIN RETURN @a + @b; END;");
+
+  db_check_int("call sum(11, 22)", 33);
+  db_check_double("call sum(11.1, 22.2)", 33.3, 0.0001);
+
+
+  db_execute("CREATE PROCEDURE div(@a, @b) BEGIN RETURN @b / @a + 1; END;");
+
+  db_check_int("call div(11, 33)", 4);
+  db_check_double("call div(8, 100.0)", 13.5, 0.0001);
+
+
+  db_execute("CREATE PROCEDURE concat(@a, @b) BEGIN RETURN @a || @b; END;");
+
+  db_check_str("call concat('hello', 'world')", "helloworld");
+  db_check_str("call concat(11, 22)", "1122");
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -312,13 +328,14 @@ int main(){
 
   db_execute(
     "CREATE PROCEDURE set_expression(@a) BEGIN "
-    "SET @b = @a * 3;"
-    "RETURN @b;"
+    "SET @b = 2;"
+    "SET @res = @a * @b + 3;"
+    "RETURN @res;"
     "END;"
   );
 
-  db_check_int("CALL set_expression(11)", 33);
-  db_check_double("CALL set_expression(2.2)", 6.6, 0.0001);
+  db_check_int("CALL set_expression(11)", 25);
+  db_check_double("CALL set_expression(2.2)", 7.4, 0.0001);
 
 
   // SET with INSERT and RETURNING
@@ -350,7 +367,7 @@ int main(){
 
   db_execute(
     "CREATE PROCEDURE set_update_all_returning() BEGIN "
-    "SET @ids = UPDATE test SET a = 33, b = 4.5, c = 'bye!', d = x'582059207A' RETURNING id;"
+    "SET @ids = (UPDATE test SET a = 33, b = 4.5, c = 'bye!', d = x'582059207A' RETURNING id);"
     "RETURN @ids;"
     "END;"
   );
@@ -363,11 +380,28 @@ int main(){
   );
 
 
+  // SET with SELECT and many rows
+
+  db_execute(
+    "CREATE PROCEDURE set_select_many() BEGIN "
+    "SET @a = (SELECT id FROM test);"
+    "RETURN @a;"
+    "END;"
+  );
+
+  db_check_many("CALL set_select_many()",
+    "1",
+    "2",
+    "3",
+    NULL
+  );
+
+
   // SET with DELETE and RETURNING
 
   db_execute(
     "CREATE PROCEDURE set_delete_returning() BEGIN "
-    "SET @ids = DELETE FROM test WHERE a = 33 RETURNING id;"
+    "SET @ids = (DELETE FROM test WHERE a = 33 RETURNING id);"
     "RETURN @ids;"
     "END;"
   );
@@ -391,7 +425,7 @@ int main(){
   );
 
   db_execute(
-    "CREATE PROCEDURE sum(@a, @b) BEGIN "
+    "CREATE OR REPLACE PROCEDURE sum(@a, @b) BEGIN "
     "SET @c = @a + @b;"
     "RETURN @c;"
     "END;"
@@ -1007,8 +1041,7 @@ int main(){
     " ELSE"
     "   SET @b = @b - 1;"
     "   SET @res = CALL mult(@a, @b);"
-    "   SET @res = @res + @a;"
-    "   RETURN @res;"
+    "   RETURN @res + @a;"
     " END IF;"
     "END"
   );

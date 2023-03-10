@@ -1155,7 +1155,6 @@ SQLITE_PRIVATE int parseDeclareStatement(Parse *pParse, stored_proc* procedure, 
 
     // check if the statement ends with a semicolon
     if (*sql != ';') {
-        //procedure->error_msg = sqlite3_mprintf("expected ';'");
         goto loc_invalid;
     }
     // skip the semicolon
@@ -1290,7 +1289,8 @@ loc_invalid:
 
 SQLITE_PRIVATE int parseReturnStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql) {
     command *cmd = &procedure->cmds[pos];
-    char* sql = *psql;
+    char *sql = *psql;
+    char *expression;
     int num_vars;
     int rc;
     int i;
@@ -1303,31 +1303,46 @@ SQLITE_PRIVATE int parseReturnStatement(Parse *pParse, stored_proc* procedure, i
     // if there is nothing to return, then skip the semicolon
     if (*sql == ';') goto loc_skip_semicolon;
 
+    // keep a copy of the expression
+    expression = sql;
+
     // parse the list of variables
     rc = parse_variables_list(procedure, pos, &sql, &cmd->num_vars, &used_vars);
-    if (rc != SQLITE_OK) {
-        goto loc_invalid;
-    }
+    if (rc == SQLITE_OK && *sql == ';') {
 
-    // store the list of used variables
-    cmd->vars = sqlite3_malloc( cmd->num_vars * sizeof(sqlite3_var*) );
-    if( !cmd->vars ) return SQLITE_NOMEM;
-    for( i=0, var=used_vars; var; i++, var=var->nextUsed ){
-      cmd->vars[i] = var;
-    }
+        // store the list of used variables
+        cmd->vars = sqlite3_malloc( cmd->num_vars * sizeof(sqlite3_var*) );
+        if( !cmd->vars ) return SQLITE_NOMEM;
+        for( i=0, var=used_vars; var; i++, var=var->nextUsed ){
+          cmd->vars[i] = var;
+        }
 
-    // skip whitespaces
-    while (sqlite3Isspace(*sql)) sql++;
-
-    // check if the statement ends with a semicolon
-    if (*sql != ';') {
-        //procedure->error_msg = sqlite3_mprintf("expected ';'");
-        //return SQLITE_ERROR;
-        goto loc_invalid;
-    }
 loc_skip_semicolon:
-    // skip the semicolon
-    sql++;
+        // skip the semicolon
+        sql++;
+
+    } else {
+
+        rc = SQLITE_OK;
+        if( procedure->error_msg ){
+          sqlite3_free(procedure->error_msg);
+          procedure->error_msg = NULL;
+        }
+
+        // parse the expression
+        sql = expression;
+        cmd->sql = sql;
+        cmd->nsql = skip_sql_command(&sql);
+        // allocate a single variable to store the result
+        cmd->num_vars = 1;
+        cmd->vars = sqlite3_malloc( sizeof(sqlite3_var*) );
+        if( !cmd->vars ) return SQLITE_NOMEM;
+        // create a new variable using addVariable()
+        cmd->vars[0] = addVariable(procedure, "result", 6, 0, NULL);
+        if( !cmd->vars[0] ) return SQLITE_NOMEM;
+
+    }
+
     // skip whitespaces
     while (sqlite3Isspace(*sql)) sql++;
 
@@ -1386,15 +1401,6 @@ SQLITE_PRIVATE int parseIfStatement(Parse *pParse, stored_proc* procedure, int p
         return SQLITE_ERROR;
     }
 
-    // add "SELECT" to the expression
-    cmd->sql = sqlite3_mprintf("SELECT %.*s", cmd->nsql, cmd->sql);
-    cmd->nsql += 7;
-
-    if( cmd->sql==NULL ) return SQLITE_NOMEM;
-
-    // mark that this SQL command is dynamic
-    cmd->flags |= CMD_FLAG_DYNAMIC_SQL;
-
     // store the current parsing position on the psql pointer
     *psql = sql;
 
@@ -1437,15 +1443,6 @@ SQLITE_PRIVATE int parseElseIfStatement(Parse *pParse, stored_proc* procedure, i
         sqlite3ErrorMsg(pParse, "expected THEN");
         return SQLITE_ERROR;
     }
-
-    // add "SELECT" to the expression
-    cmd->sql = sqlite3_mprintf("SELECT %.*s", cmd->nsql, cmd->sql);
-    cmd->nsql += 7;
-
-    if( cmd->sql==NULL ) return SQLITE_NOMEM;
-
-    // mark that this SQL command is dynamic
-    cmd->flags |= CMD_FLAG_DYNAMIC_SQL;
 
     // store the current parsing position on the psql pointer
     *psql = sql;
@@ -2277,10 +2274,20 @@ loc_exit:
 ** Execute an expression and return the result.
 */
 SQLITE_PRIVATE int execute_expression(
-  Vdbe *v, stored_proc* procedure, command *cmd, bool* result
+  Vdbe *v, command *cmd, bool* bool_result, sqlite3_value *value_result
 ){
   int rc = SQLITE_OK;
   sqlite3* db = v->db;
+
+  // if the CMD_FLAG_DYNAMIC_SQL is not set
+  if( (cmd->flags & CMD_FLAG_DYNAMIC_SQL)==0 ){
+    // add "SELECT" to the expression
+    cmd->sql = sqlite3_mprintf("SELECT %.*s", cmd->nsql, cmd->sql);
+    cmd->nsql += 7;
+    if( cmd->sql==NULL ) return SQLITE_NOMEM;
+    // mark that this SQL command is dynamic
+    cmd->flags |= CMD_FLAG_DYNAMIC_SQL;
+  }
 
   if( cmd->stmt==NULL ){
     // prepare the expression
@@ -2292,7 +2299,7 @@ SQLITE_PRIVATE int execute_expression(
   if( rc ) goto loc_error;
 
   // bind variables
-  bindLocalVariables(procedure, cmd->stmt);
+  bindLocalVariables(cmd->procedure, cmd->stmt);
 
   // execute the expression
   rc = sqlite3_step(cmd->stmt);
@@ -2302,7 +2309,12 @@ SQLITE_PRIVATE int execute_expression(
   }
 
   // get the result
-  *result = sqlite3_column_int(cmd->stmt, 0);
+  if( bool_result ) {
+    *bool_result = sqlite3_column_int(cmd->stmt, 0);
+  }else{
+    sqlite3_value *value = sqlite3_column_value(cmd->stmt, 0);
+    sqlite3VdbeMemMove(value_result, value);
+  }
 
   // make sure the statement returns no more rows
   rc = sqlite3_step(cmd->stmt);
@@ -2452,6 +2464,13 @@ SQLITE_PRIVATE int executeReturnCommand(Vdbe *v, command *cmd) {
     sqlite3DbFree(v->db, v->aMem);
     v->aMem = NULL;
     v->nMem = 0;
+  }
+
+  // if it returns an expression
+  if( cmd->sql!=NULL ){
+    // evaluate the expression
+    rc = execute_expression(v, cmd, NULL, &cmd->vars[0]->value);
+    if( rc ) return rc;
   }
 
   // if returning a result set (many rows)
@@ -3042,7 +3061,7 @@ SQLITE_PRIVATE int executeStoredProcedure(Vdbe *v, procedure_call *call) {
 
       case CMD_TYPE_IF:
         // evaluate the expression
-        rc = execute_expression(v, procedure, cmd, &result);
+        rc = execute_expression(v, cmd, &result, NULL);
         if( rc ) goto loc_error;
         // does the expression evaluate to true?
         if( result ){
@@ -3065,7 +3084,7 @@ SQLITE_PRIVATE int executeStoredProcedure(Vdbe *v, procedure_call *call) {
           break;
         }
         // evaluate the expression
-        rc = execute_expression(v, procedure, cmd, &result);
+        rc = execute_expression(v, cmd, &result, NULL);
         if( rc ) goto loc_error;
         // does the expression evaluate to true?
         if( result ){
