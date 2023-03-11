@@ -1291,7 +1291,6 @@ SQLITE_PRIVATE int parseReturnStatement(Parse *pParse, stored_proc* procedure, i
     command *cmd = &procedure->cmds[pos];
     char *sql = *psql;
     char *expression;
-    int num_vars;
     int rc;
     int i;
     sqlite3_var *var, *used_vars;
@@ -1333,13 +1332,6 @@ loc_skip_semicolon:
         sql = expression;
         cmd->sql = sql;
         cmd->nsql = skip_sql_command(&sql);
-        // allocate a single variable to store the result
-        cmd->num_vars = 1;
-        cmd->vars = sqlite3_malloc( sizeof(sqlite3_var*) );
-        if( !cmd->vars ) return SQLITE_NOMEM;
-        // create a new variable using addVariable()
-        cmd->vars[0] = addVariable(procedure, "result", 6, 0, NULL);
-        if( !cmd->vars[0] ) return SQLITE_NOMEM;
 
     }
 
@@ -2273,9 +2265,7 @@ loc_exit:
 /*
 ** Execute an expression and return the result.
 */
-SQLITE_PRIVATE int execute_expression(
-  Vdbe *v, command *cmd, bool* bool_result, sqlite3_value *value_result
-){
+SQLITE_PRIVATE int execute_expression(Vdbe *v, command *cmd, bool* bool_result){
   int rc = SQLITE_OK;
   sqlite3* db = v->db;
 
@@ -2312,8 +2302,36 @@ SQLITE_PRIVATE int execute_expression(
   if( bool_result ) {
     *bool_result = sqlite3_column_int(cmd->stmt, 0);
   }else{
-    sqlite3_value *value = sqlite3_column_value(cmd->stmt, 0);
-    sqlite3VdbeMemMove(value_result, value);
+    sqlite3_var *var;
+    // get the number of result columns
+    int num_cols = sqlite3_column_count(cmd->stmt);
+    if( num_cols==0 ){
+      sqlite3VdbeError(v, "expression did not return a result");
+      goto loc_error;
+    }
+    // allocate variables to store the result
+    cmd->num_vars = num_cols;
+    cmd->vars = sqlite3_malloc( num_cols * sizeof(sqlite3_var*) );
+    if( !cmd->vars ) return SQLITE_NOMEM;
+    // for each result column
+    for(int i=0; i<num_cols; i++){
+      char buf[32];
+      // get the column name
+      const char *name = sqlite3_column_name(cmd->stmt, i);
+      if( !name ){
+        // if the column name is not available, use the column index
+        sprintf(buf, "col%d", i+1);
+        name = buf;
+      }
+      // create a new variable
+      var = addVariable(cmd->procedure, name, strlen(name), 0, NULL);
+      if( !var ) return SQLITE_NOMEM;
+      cmd->vars[i] = var;
+      // get the column value
+      sqlite3_value *value = sqlite3_column_value(cmd->stmt, i);
+      // move the column value to the variable
+      sqlite3VdbeMemMove(&var->value, value);
+    }
   }
 
   // make sure the statement returns no more rows
@@ -2438,7 +2456,7 @@ SQLITE_PRIVATE int executeReturnCommand(Vdbe *v, command *cmd) {
   int rc = SQLITE_OK;
   int i;
 
-  if( cmd->num_vars==0 ){
+  if( cmd->num_vars==0 && cmd->sql==NULL ){
     // no result set
     return SQLITE_OK;
   }
@@ -2469,7 +2487,7 @@ SQLITE_PRIVATE int executeReturnCommand(Vdbe *v, command *cmd) {
   // if it returns an expression
   if( cmd->sql!=NULL ){
     // evaluate the expression
-    rc = execute_expression(v, cmd, NULL, &cmd->vars[0]->value);
+    rc = execute_expression(v, cmd, NULL);
     if( rc ) return rc;
   }
 
@@ -3061,7 +3079,7 @@ SQLITE_PRIVATE int executeStoredProcedure(Vdbe *v, procedure_call *call) {
 
       case CMD_TYPE_IF:
         // evaluate the expression
-        rc = execute_expression(v, cmd, &result, NULL);
+        rc = execute_expression(v, cmd, &result);
         if( rc ) goto loc_error;
         // does the expression evaluate to true?
         if( result ){
@@ -3084,7 +3102,7 @@ SQLITE_PRIVATE int executeStoredProcedure(Vdbe *v, procedure_call *call) {
           break;
         }
         // evaluate the expression
-        rc = execute_expression(v, cmd, &result, NULL);
+        rc = execute_expression(v, cmd, &result);
         if( rc ) goto loc_error;
         // does the expression evaluate to true?
         if( result ){

@@ -116,12 +116,11 @@ int main(){
 
   // RETURN with one argument (fixed)
 
-#if 0
   db_execute("CREATE PROCEDURE return_11() BEGIN RETURN 11; END;");
 
   // CALL without arguments
   db_check_int("call return_11()", 11);
-#endif
+
 
   // RETURN with one argument (variable)
 
@@ -177,7 +176,7 @@ int main(){
 
 
   // RETURN with many literal arguments on the same row
-#if 0
+
   db_execute("CREATE PROCEDURE return_many_literal() BEGIN "
     "RETURN 123, 2.5, 'hello world', x'4142434445';"
     "END;"
@@ -190,7 +189,7 @@ int main(){
 
 
   // RETURN with many literal arguments on different rows (ARRAY literal)
-
+#if 0
   db_execute("CREATE PROCEDURE return_array_literal() BEGIN "
     "RETURN ARRAY(123, 2.5, 'hello world', x'4142434445');"
     "END;"
@@ -204,6 +203,7 @@ int main(){
     NULL
   );
 #endif
+
 
   // RETURN with many variable arguments on the same row
 
