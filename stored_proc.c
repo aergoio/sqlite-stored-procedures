@@ -2585,6 +2585,30 @@ SQLITE_PRIVATE int executeStatementCommand(Vdbe *v, command *cmd) {
   sqlite3 *db = procedure->db;
   int rc = SQLITE_OK;
 
+  // reject transaction commands
+  if( cmd->sql[0]=='B' || cmd->sql[0]=='C' || cmd->sql[0]=='R' ||
+      cmd->sql[0]=='S' ){
+    if( cmd->nsql>=5 && sqlite3_strnicmp(cmd->sql, "BEGIN", 5)==0 ||
+        cmd->nsql>=6 && sqlite3_strnicmp(cmd->sql, "COMMIT", 6)==0 ||
+        cmd->nsql>=8 && sqlite3_strnicmp(cmd->sql, "ROLLBACK", 8)==0 ||
+        cmd->nsql>=8 && sqlite3_strnicmp(cmd->sql, "SAVEPOINT", 8)==0 ||
+        cmd->nsql>=7 && sqlite3_strnicmp(cmd->sql, "RELEASE", 7)==0 ){
+      // set the error message
+      sqlite3VdbeError(v, "transaction commands are not allowed in stored procedures");
+      // return the error code
+      return SQLITE_ERROR;
+    }
+  }else
+  if( cmd->sql[0]=='A' || cmd->sql[0]=='D' ){
+    if( cmd->nsql>=6 && sqlite3_strnicmp(cmd->sql, "ATTACH", 6)==0 ||
+        cmd->nsql>=6 && sqlite3_strnicmp(cmd->sql, "DETACH", 6)==0 ){
+      // set the error message
+      sqlite3VdbeError(v, "attach/detach commands are not allowed in stored procedures");
+      // return the error code
+      return SQLITE_ERROR;
+    }
+  }
+
   // prepare the statement if it is not prepared yet
   if( cmd->stmt==NULL ){
     // parse the SQL statement
@@ -3029,7 +3053,9 @@ loc_error:
 SQLITE_PRIVATE int executeStoredProcedure(Vdbe *v, procedure_call *call) {
   stored_proc *procedure = call->procedure;
   sqlite3 *db = procedure->db;
-  int rc = SQLITE_OK;
+  char savepoint_name[32];
+  char sql[48];
+  int rc = SQLITE_OK, rc2;
   int pos, ifpos;
   bool result;
   command *cmd;
@@ -3041,6 +3067,20 @@ SQLITE_PRIVATE int executeStoredProcedure(Vdbe *v, procedure_call *call) {
   sqlite3ChangeOpcode(v, POS_RESULT_ROW, OP_Noop, 0, 0);
   // reset the OP_NextResult opcode to OP_Noop
   sqlite3ChangeOpcode(v, POS_NEXT_RESULT, OP_Noop, 0, 0);
+
+  // create a random savepoint name
+  do{
+    sqlite3_randomness(sizeof(pos), &pos);
+  }while (pos<0);
+  sqlite3_snprintf(sizeof(savepoint_name), savepoint_name, "sp_%08x", pos);
+
+  // create a savepoint
+  sqlite3_snprintf(sizeof(sql), sql, "SAVEPOINT %s", savepoint_name);
+  rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+  if (rc != SQLITE_OK) {
+    sqlite3VdbeError(v, "%s", sqlite3_errmsg(db));
+    return rc;
+  }
 
   // copy from the cmd->input_array to the parameter values (procedure->params[])
   // copy the declared variable values from the v->aVar[] array to the parameter values
@@ -3165,12 +3205,31 @@ SQLITE_PRIVATE int executeStoredProcedure(Vdbe *v, procedure_call *call) {
   }
 
 loc_exit:
+
+  // release the savepoint
+  sqlite3_snprintf(sizeof(sql), sql, "RELEASE %s", savepoint_name);
+  rc2 = sqlite3_exec(db, sql, NULL, NULL, NULL);
+  if (rc2 != SQLITE_OK) {
+    if (rc == SQLITE_OK) {
+      rc = rc2;
+    }
+    goto loc_error;
+  }
+
   return rc;
 loc_error:
   if( v->zErrMsg==NULL ){
     sqlite3VdbeError(v, "%s", sqlite3_errmsg(db));
   }
   printf("execution error (%s): %s\n", command_type_str(cmd->type), v->zErrMsg);
+  // rollback to the savepoint
+  sqlite3_snprintf(sizeof(sql), sql, "ROLLBACK TO %s", savepoint_name);
+  rc2 = sqlite3_exec(db, sql, NULL, NULL, NULL);
+  if (rc2 != SQLITE_OK) {
+    if (rc == SQLITE_OK) {
+      rc = rc2;
+    }
+  }
   goto loc_exit;
 }
 

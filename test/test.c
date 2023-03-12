@@ -1074,6 +1074,130 @@ END
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+// INVALID SQL
+////////////////////////////////////////////////////////////////////////////////
+
+
+  // BEGIN
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_transaction() BEGIN"
+    " BEGIN;"
+    "END"
+  );
+
+  db_catch("CALL test_transaction()");
+
+
+  // BEGIN TRANSACTION
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_begin_transaction() BEGIN"
+    " BEGIN TRANSACTION;"
+    "END"
+  );
+
+  db_catch("CALL test_begin_transaction()");
+
+
+  // ROLLBACK
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_rollback() BEGIN"
+    " ROLLBACK;"
+    "END"
+  );
+
+  db_catch("CALL test_rollback()");
+
+
+  // COMMIT
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_commit() BEGIN"
+    " COMMIT;"
+    "END"
+  );
+
+  db_catch("CALL test_commit()");
+
+
+  // END TRANSACTION
+
+  db_catch(
+    "CREATE OR REPLACE PROCEDURE test_end_transaction() BEGIN"
+    " END TRANSACTION;"
+    "END"
+  );
+
+  //db_catch("CALL test_end_transaction()");
+
+
+  // SET with BEGIN
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_set_transaction() BEGIN"
+    " SET @a = BEGIN;"
+    "END"
+  );
+
+  db_catch("CALL test_set_transaction()");
+
+
+  // SET with ROLLBACK
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_set_rollback() BEGIN"
+    " SET @a = ROLLBACK;"
+    "END"
+  );
+
+  db_catch("CALL test_set_rollback()");
+
+
+  // ATTACH
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_attach() BEGIN"
+    " ATTACH DATABASE ':memory:' AS test;"
+    "END"
+  );
+
+  db_catch("CALL test_attach()");
+
+
+  // DETACH
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_detach() BEGIN"
+    " DETACH DATABASE test;"
+    "END"
+  );
+
+  db_catch("CALL test_detach()");
+
+
+
+  // 2 insertions: 1 valid and 1 invalid. the valid one should be rolled back
+
+  db_execute("DROP TABLE IF EXISTS test");
+  db_execute("CREATE TABLE test (id INTEGER PRIMARY KEY, value INTEGER)");
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_revert() BEGIN"
+    " INSERT INTO test (value) VALUES (1);"
+    " INSERT INTO test (value) VALUES (invalid);"
+    "END"
+  );
+
+  db_catch("CALL test_revert()");
+
+  db_check_int("SELECT count(*) FROM test", 0);
+
+
+
+
   sqlite3_close(db);
   puts("OK. All tests pass!");
   return 0;
