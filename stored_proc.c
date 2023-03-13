@@ -1,5 +1,5 @@
 
-#ifdef DEBUGPRINT
+#ifdef SQLITE_DEBUG
 #define XTRACE(...)   printf(__VA_ARGS__)
 #else
 #define XTRACE(...)
@@ -179,12 +179,12 @@ SQLITE_PRIVATE int skip_delimited_sql_command(char **psql, char *delim){
   int ndelim = strlen(delim);
   bool found = false;
 
-  //printf("skip_delimited_sql_command (%s) %s\n", delim, sql);
+  XTRACE("skip_delimited_sql_command (%s) %s\n", delim, sql);
 
   // there is TK_THEN...
 
   while( (n = sqlite3GetToken((u8*)sql, &token_type)) != 0 ){
-    //printf("token %d %.*s\n", token_type, n, sql);
+    XTRACE("token %d %.*s\n", token_type, n, sql);
     //if( token_type == TK_ID && n == ndelim && sqlite3_strnicmp(sql, delim, ndelim) == 0 ){
     if( n == ndelim && sqlite3_strnicmp(sql, delim, ndelim) == 0 ){
       found = true;
@@ -415,8 +415,7 @@ SQLITE_PRIVATE int parse_array(
   Parse *pParse, stored_proc* procedure, char** psql, sqlite3_array **parray
 ){
     char* sql = *psql;
-    int rc;
-    int i;
+    int rc = SQLITE_OK;
     int n, tokenType;
     sqlite3_array* array = NULL;
 
@@ -646,14 +645,14 @@ SQLITE_PRIVATE void dropAllVariables(stored_proc *procedure){
 SQLITE_PRIVATE void bindLocalVariables(stored_proc *procedure, sqlite3_stmt *stmt){
   sqlite3_var *var;
 
-printf("bindLocalVariables count=%d \n", sqlite3_bind_parameter_count(stmt));
+  XTRACE("bindLocalVariables count=%d \n", sqlite3_bind_parameter_count(stmt));
 
   if( !procedure->vars || sqlite3_bind_parameter_count(stmt)==0 ) return;
 
   /* for each declared variable, check if being used in the statement */
   for( var=procedure->vars; var; var=var->next ){
     int idx = sqlite3_bind_parameter_index(stmt, var->name);
-    printf("bindLocalVariables %s idx=%d \n", var->name, idx);
+    XTRACE("bindLocalVariables %s idx=%d \n", var->name, idx);
     if( idx>0 ){
       sqlite3_bind_value(stmt, idx, &var->value);
     }
@@ -685,6 +684,7 @@ SQLITE_PRIVATE int parseContinueStatement(Parse *pParse, stored_proc* procedure,
 SQLITE_PRIVATE int parseForEachStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql);
 
 
+#ifdef SQLITE_DEBUG
 // returns the command type name in string format
 SQLITE_PRIVATE char* command_type_str(int type) {
     switch (type) {
@@ -722,6 +722,7 @@ SQLITE_PRIVATE char* command_type_str(int type) {
     }
     return "UNKNOWN";
 }
+#endif
 
 // new_command using arrays:
 // - allocate an array of 16 commands if the array is not yet allocated (cmds == NULL),
@@ -764,7 +765,6 @@ SQLITE_PRIVATE int parseStoredProcedure(Parse *pParse, stored_proc* procedure, c
     char* sql = *psql;
     int rc = SQLITE_OK;
     int n, tokenType, i;
-    char* zName;
     sqlite3_var *varList, *var;
 
     if (sqlite3_strnicmp(sql, "PROCEDURE ", 10) == 0) {
@@ -1098,7 +1098,6 @@ loc_invalid_token:
 }
 
 SQLITE_PRIVATE int parse_new_command(Parse *pParse, stored_proc* procedure, int type, char** psql) {
-    char* sql = *psql;
 
     int pos = new_command(procedure, type);
     if (pos < 0) return SQLITE_NOMEM;
@@ -1367,8 +1366,6 @@ loc_invalid:
 SQLITE_PRIVATE int parseRaiseStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql) {
     command *cmd = &procedure->cmds[pos];
     char *sql = *psql;
-    char *expression;
-    int rc;
 
     // skip "RAISE" and whitespaces
     sql += 5;
@@ -1395,12 +1392,11 @@ SQLITE_PRIVATE int parseRaiseStatement(Parse *pParse, stored_proc* procedure, in
 
     return SQLITE_OK;
 loc_invalid:
-    if (rc == SQLITE_OK) rc = SQLITE_ERROR;
     if (pParse->zErrMsg == NULL) {
       sqlite3ErrorMsg(pParse, "invalid token: %s", sql);
     }
     *psql = sql;
-    return rc;
+    return SQLITE_ERROR;
 }
 
 
@@ -1781,7 +1777,7 @@ END LOOP;
 SQLITE_PRIVATE int parseForEachStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql) {
     command* cmd = &procedure->cmds[pos];
     char* sql = *psql;
-    int rc;
+    int rc = SQLITE_OK;
     int i;
     int n, tokenType;
     sqlite3_var *var, *used_vars;
@@ -2007,7 +2003,7 @@ SQLITE_PRIVATE void prepareNewStoredProcedure(Parse *pParse, char **psql, bool o
     // finish coding the VDBE program
     sqlite3FinishCoding(pParse);
 
-    printf("insertion SQL: %s\n", sql2);
+    XTRACE("insertion SQL: %s\n", sql2);
 
 loc_exit:
     if( procedure ){
@@ -2116,10 +2112,8 @@ loc_invalid:
 ** 
 */
 SQLITE_PRIVATE int processCallParameters(Parse *pParse, sqlite3_array *input_array) {
-    sqlite3 *db = pParse->db;
     int count = 0;
     int i;
-    int rc = SQLITE_OK;
 
     // count how many variables are there in the input array
     for (i = 0; i < input_array->num_items; i++) {
@@ -2272,7 +2266,7 @@ SQLITE_PRIVATE void prepareProcedureCall(Parse *pParse, char **psql) {
     sqlite3VdbeAddOp0(v, OP_Noop);  /* replaced by a OP_NextResult opcode */
     assert( POS_NEXT_RESULT==sqlite3VdbeCurrentAddr(v)-1 );
 
-    printf("pParse->nMem=%d v->nMem=%d\n", pParse->nMem, v->nMem);
+    XTRACE("pParse->nMem=%d v->nMem=%d\n", pParse->nMem, v->nMem);
     //assert( pParse->nMem==0 && v->nMem==0 );
 
     //sqlite3VdbeAddOp0(v, OP_Halt); - already added on sqlite3FinishCoding()
@@ -2369,7 +2363,7 @@ SQLITE_PRIVATE int execute_expression(Vdbe *v, command *cmd, bool* bool_result){
     for(int i=0; i<num_cols; i++){
       char buf[32];
       // get the column name
-      const char *name = sqlite3_column_name(cmd->stmt, i);
+      char *name = (char*) sqlite3_column_name(cmd->stmt, i);
       if( !name ){
         // if the column name is not available, use the column index
         sprintf(buf, "col%d", i+1);
@@ -2425,7 +2419,7 @@ SQLITE_PRIVATE int db_query_str(stored_proc *procedure, char *sql, char **presul
   }
 
   // get the result
-  *presult = sqlite3StrDup(sqlite3_column_text(stmt, 0));
+  *presult = sqlite3StrDup((char*)sqlite3_column_text(stmt, 0));
 
   // make sure the statement returns no more rows
   rc = sqlite3_step(stmt);
@@ -2459,7 +2453,7 @@ SQLITE_PRIVATE void copyProcedureParameters(Vdbe *v, procedure_call *call) {
 
     // check if the input value is a variable
     if (input->eSubtype == 'v' && (input->flags & MEM_Int)!=0) {
-      assert(v->aVar!=0 && input->u.i>=0 && input->u.i<v->nVar);
+      assert(v->aVar!=0 && input->u.i>0 && input->u.i<=v->nVar);
       // get the variable number
       int var_number = input->u.i;
       // get the variable value
@@ -2648,7 +2642,7 @@ SQLITE_PRIVATE int executeReturnCommand(Vdbe *v, command *cmd) {
         return SQLITE_ERROR;
       }
       // copy the value to the result set (aMem[0] is reserved)
-      printf("copying value %lld\n", value->u.i);
+      XTRACE("copying value %lld\n", value->u.i);
       sqlite3VdbeMemMove(&v->aMem[i+1], value);
       //sqlite3VdbeMemShallowCopy(&v->aMem[i+1], value, MEM_Static);
       //sqlite3VdbeMemCopy(&v->aMem[i+1], value);
@@ -2775,7 +2769,6 @@ loc_error:
 */
 SQLITE_PRIVATE int executeSetCommand(Vdbe *v, command *cmd) {
   stored_proc *procedure = cmd->procedure;
-  sqlite3 *db = procedure->db;
   int rc = SQLITE_OK;
 
   // similar to the STATEMENT command: execute the prepared statement and store
@@ -3348,7 +3341,7 @@ loc_error:
   if( v->zErrMsg==NULL ){
     sqlite3VdbeError(v, "%s", sqlite3_errmsg(db));
   }
-  printf("execution error (%s): %s\n", command_type_str(cmd->type), v->zErrMsg);
+  XTRACE("execution error (%s): %s\n", command_type_str(cmd->type), v->zErrMsg);
   // rollback to the savepoint
   sqlite3_snprintf(sizeof(sql), sql, "ROLLBACK TO %s", savepoint_name);
   rc2 = sqlite3_exec(db, sql, NULL, NULL, NULL);
@@ -3484,7 +3477,7 @@ SQLITE_PRIVATE int checkSpecialCommand(Parse *pParse, const char **psql){
       if (sqlite3_strnicmp(sql, "PROCEDURE ", 10) == 0 ||
           sqlite3_strnicmp(sql, "FUNCTION ", 9) == 0) {
         prepareNewStoredProcedure(pParse, &sql, or_replace);
-        printf("rc = %d  nErr = %d\n", pParse->rc, pParse->nErr);
+        XTRACE("rc = %d  nErr = %d\n", pParse->rc, pParse->nErr);
         *psql = sql;
         return SQLITE_DONE;
       }
@@ -3495,7 +3488,7 @@ SQLITE_PRIVATE int checkSpecialCommand(Parse *pParse, const char **psql){
       // skip the "CALL " keyword
       sql += 5;
       prepareProcedureCall(pParse, &sql);
-      printf("rc = %d  nErr = %d\n", pParse->rc, pParse->nErr);
+      XTRACE("rc = %d  nErr = %d\n", pParse->rc, pParse->nErr);
       *psql = sql;
       return SQLITE_DONE;
     }

@@ -4,7 +4,7 @@
 /****************************************************************************/
 
 int bind_sql_parameters(sqlite3_stmt *stmt, const char *types, va_list ap){
-  int rc, parameter_count, iDest, i;
+  int parameter_count, iDest, i;
   char c;
 
   parameter_count = sqlite3_bind_parameter_count(stmt);
