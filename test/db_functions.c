@@ -85,6 +85,34 @@ void db_catch_fn(sqlite3 *db, char *sql, const char *function, int line){
 
 /****************************************************************************/
 
+void db_catch_msg_fn(sqlite3 *db, char *sql, char *expected_msg, const char *function, int line){
+  char *zErrMsg=0;
+  int rc;
+
+  rc = sqlite3_exec(db, sql, 0, 0, &zErrMsg);
+  if( rc==SQLITE_OK || zErrMsg==0 ){
+    print_error(rc, "expected error was not generated", sql, function, line);
+    sqlite3_free(zErrMsg);
+    QUIT_TEST();
+  }else{
+    // check that the returned error message contains the expected message
+    if( strstr(zErrMsg, expected_msg)==0 ){
+      char *desc = sqlite3_mprintf("different error message:\n\texpected: %s\n\treturned: %s", expected_msg, zErrMsg);
+      print_error(rc, desc, sql, function, line);
+      sqlite3_free(desc);
+      sqlite3_free(zErrMsg);
+      QUIT_TEST();
+    }
+    // free the error message
+    sqlite3_free(zErrMsg);
+  }
+
+}
+
+#define db_catch_msg(sql,expected_msg) db_catch_msg_fn(db, sql, expected_msg, __FUNCTION__, __LINE__)
+
+/****************************************************************************/
+
 void db_execute_many_fn(sqlite3 *db, char *sql, char *types, int count,
   const char *function, int line, ...
 ){

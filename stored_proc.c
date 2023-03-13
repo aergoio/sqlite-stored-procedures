@@ -7,8 +7,9 @@
 
 #define CMD_TYPE_DECLARE    1
 #define CMD_TYPE_SET        2
-#define CMD_TYPE_RETURN     3
-#define CMD_TYPE_STATEMENT  4
+#define CMD_TYPE_STATEMENT  3
+#define CMD_TYPE_RETURN     4
+#define CMD_TYPE_RAISE      5
 
 #define CMD_TYPE_IF         6
 #define CMD_TYPE_ELSEIF     7
@@ -669,6 +670,7 @@ SQLITE_PRIVATE int parse_new_command(Parse *pParse, stored_proc* procedure, int 
 SQLITE_PRIVATE int parseDeclareStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql);
 SQLITE_PRIVATE int parseSetStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql);
 SQLITE_PRIVATE int parseReturnStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql);
+SQLITE_PRIVATE int parseRaiseStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql);
 
 SQLITE_PRIVATE int parseIfStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql);
 SQLITE_PRIVATE int parseElseIfStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql);
@@ -692,6 +694,8 @@ SQLITE_PRIVATE char* command_type_str(int type) {
             return "SET";
         case CMD_TYPE_RETURN:
             return "RETURN";
+        case CMD_TYPE_RAISE:
+            return "RAISE";
 
         case CMD_TYPE_STATEMENT:
             return "STATEMENT";
@@ -903,6 +907,10 @@ SQLITE_PRIVATE int parse_procedure_body(Parse *pParse, stored_proc* procedure, c
         } else if (sqlite3_strnicmp(sql, "RETURN", 6) == 0) {
             rc = parse_new_command(pParse, procedure, CMD_TYPE_RETURN, &sql);
 
+        // if the SQL command starts with "RAISE", then it is a raise statement
+        } else if (sqlite3_strnicmp(sql, "RAISE", 5) == 0) {
+            rc = parse_new_command(pParse, procedure, CMD_TYPE_RAISE, &sql);
+
         // process IF, ELSEIF, ELSE and END IF
         } else if (sqlite3_strnicmp(sql, "IF", 2) == 0 && sqlite3Isspace(sql[2])) {
             rc = parse_new_command(pParse, procedure, CMD_TYPE_IF, &sql);
@@ -1103,6 +1111,8 @@ SQLITE_PRIVATE int parse_new_command(Parse *pParse, stored_proc* procedure, int 
             return parseSetStatement(pParse, procedure, pos, psql);
         case CMD_TYPE_RETURN:
             return parseReturnStatement(pParse, procedure, pos, psql);
+        case CMD_TYPE_RAISE:
+            return parseRaiseStatement(pParse, procedure, pos, psql);
 
         case CMD_TYPE_IF:
             return parseIfStatement(pParse, procedure, pos, psql);
@@ -1334,6 +1344,48 @@ loc_skip_semicolon:
         cmd->nsql = skip_sql_command(&sql);
 
     }
+
+    // skip whitespaces
+    while (sqlite3Isspace(*sql)) sql++;
+
+    // store the current parsing position on the psql pointer
+    *psql = sql;
+
+    return SQLITE_OK;
+loc_invalid:
+    if (rc == SQLITE_OK) rc = SQLITE_ERROR;
+    if (pParse->zErrMsg == NULL) {
+      sqlite3ErrorMsg(pParse, "invalid token: %s", sql);
+    }
+    *psql = sql;
+    return rc;
+}
+
+/*
+** Parse a RAISE statement.
+*/
+SQLITE_PRIVATE int parseRaiseStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql) {
+    command *cmd = &procedure->cmds[pos];
+    char *sql = *psql;
+    char *expression;
+    int rc;
+
+    // skip "RAISE" and whitespaces
+    sql += 5;
+    while (sqlite3Isspace(*sql)) sql++;
+
+    // check for "EXCEPTION"
+    if (sqlite3_strnicmp(sql, "EXCEPTION", 9) != 0) {
+      goto loc_invalid;
+    }
+
+    // skip "EXCEPTION" and whitespaces
+    sql += 9;
+    while (sqlite3Isspace(*sql)) sql++;
+
+    // parse the expression
+    cmd->sql = sql;
+    cmd->nsql = skip_sql_command(&sql);
 
     // skip whitespaces
     while (sqlite3Isspace(*sql)) sql++;
@@ -2351,6 +2403,43 @@ loc_error:
   return rc;
 }
 
+SQLITE_PRIVATE int db_query_str(stored_proc *procedure, char *sql, char **presult){
+  sqlite3* db = procedure->db;
+  sqlite3_stmt *stmt = NULL;
+  int rc = SQLITE_OK;
+
+  // prepare the expression
+  rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+  if( rc ) goto loc_exit;
+
+  // bind variables
+  bindLocalVariables(procedure, stmt);
+
+  // execute the expression
+  rc = sqlite3_step(stmt);
+  if( rc!=SQLITE_ROW ){
+    if( rc==SQLITE_DONE ){
+      rc = SQLITE_ERROR;
+    }
+    goto loc_exit;
+  }
+
+  // get the result
+  *presult = sqlite3StrDup(sqlite3_column_text(stmt, 0));
+
+  // make sure the statement returns no more rows
+  rc = sqlite3_step(stmt);
+  if( rc==SQLITE_ROW ){
+    rc = SQLITE_ERROR;
+  }else if( rc==SQLITE_DONE ){
+    rc = SQLITE_OK;
+  }
+
+loc_exit:
+  sqlite3_finalize(stmt);
+  return rc;
+}
+
 /*
 ** Copy the values from the input array to the procedure parameters.
 */
@@ -2554,9 +2643,7 @@ SQLITE_PRIVATE int executeReturnCommand(Vdbe *v, command *cmd) {
       // arrays cannot be returned with multiple parameters
       if( is_array(value) ){
         // set the error message
-        sqlite3SetString(&v->zErrMsg, v->db, "cannot return an array with multiple parameters");
-        // set the error code
-        v->rc = SQLITE_ERROR;
+        sqlite3VdbeError(v, "cannot return an array with multiple parameters");
         // return the error code
         return SQLITE_ERROR;
       }
@@ -2578,6 +2665,37 @@ SQLITE_PRIVATE int executeReturnCommand(Vdbe *v, command *cmd) {
 }
 
 /*
+** Execute a RAISE command.
+*/
+SQLITE_PRIVATE int executeRaiseCommand(Vdbe *v, command *cmd) {
+  stored_proc *procedure = cmd->procedure;
+  sqlite3 *db = procedure->db;
+  char *sql, *msg=NULL;
+  int rc = SQLITE_OK;
+
+  // get the SQL statement
+  sql = sqlite3_mprintf("SELECT printf(%.*s)", cmd->nsql, cmd->sql);
+  if( sql==NULL ){
+    return SQLITE_NOMEM;
+  }
+
+  // evaluate the expression
+  rc = db_query_str(procedure, sql, &msg);
+  sqlite3_free(sql);
+  if( rc ){
+    sqlite3VdbeError(v, "%s", sqlite3_errmsg(db));
+    return rc;
+  }
+
+  // set the error message
+  sqlite3VdbeError(v, "%s", msg);
+  sqlite3_free(msg);
+
+  // return the error code
+  return rc;
+}
+
+/*
 ** Execute a statement command.
 */
 SQLITE_PRIVATE int executeStatementCommand(Vdbe *v, command *cmd) {
@@ -2588,11 +2706,11 @@ SQLITE_PRIVATE int executeStatementCommand(Vdbe *v, command *cmd) {
   // reject transaction commands
   if( cmd->sql[0]=='B' || cmd->sql[0]=='C' || cmd->sql[0]=='R' ||
       cmd->sql[0]=='S' ){
-    if( cmd->nsql>=5 && sqlite3_strnicmp(cmd->sql, "BEGIN", 5)==0 ||
-        cmd->nsql>=6 && sqlite3_strnicmp(cmd->sql, "COMMIT", 6)==0 ||
-        cmd->nsql>=8 && sqlite3_strnicmp(cmd->sql, "ROLLBACK", 8)==0 ||
-        cmd->nsql>=8 && sqlite3_strnicmp(cmd->sql, "SAVEPOINT", 8)==0 ||
-        cmd->nsql>=7 && sqlite3_strnicmp(cmd->sql, "RELEASE", 7)==0 ){
+    if( (cmd->nsql>=5 && sqlite3_strnicmp(cmd->sql, "BEGIN", 5)==0) ||
+        (cmd->nsql>=6 && sqlite3_strnicmp(cmd->sql, "COMMIT", 6)==0) ||
+        (cmd->nsql>=8 && sqlite3_strnicmp(cmd->sql, "ROLLBACK", 8)==0) ||
+        (cmd->nsql>=8 && sqlite3_strnicmp(cmd->sql, "SAVEPOINT", 8)==0) ||
+        (cmd->nsql>=7 && sqlite3_strnicmp(cmd->sql, "RELEASE", 7)==0) ){
       // set the error message
       sqlite3VdbeError(v, "transaction commands are not allowed in stored procedures");
       // return the error code
@@ -2600,8 +2718,8 @@ SQLITE_PRIVATE int executeStatementCommand(Vdbe *v, command *cmd) {
     }
   }else
   if( cmd->sql[0]=='A' || cmd->sql[0]=='D' ){
-    if( cmd->nsql>=6 && sqlite3_strnicmp(cmd->sql, "ATTACH", 6)==0 ||
-        cmd->nsql>=6 && sqlite3_strnicmp(cmd->sql, "DETACH", 6)==0 ){
+    if( (cmd->nsql>=6 && sqlite3_strnicmp(cmd->sql, "ATTACH", 6)==0) ||
+        (cmd->nsql>=6 && sqlite3_strnicmp(cmd->sql, "DETACH", 6)==0) ){
       // set the error message
       sqlite3VdbeError(v, "attach/detach commands are not allowed in stored procedures");
       // return the error code
@@ -3102,6 +3220,15 @@ SQLITE_PRIVATE int executeStoredProcedure(Vdbe *v, procedure_call *call) {
         if( rc ) goto loc_error;
         // stop processing the commands
         pos = procedure->num_cmds;
+
+        break;
+      case CMD_TYPE_RAISE:
+        // process the RAISE command
+        rc = executeRaiseCommand(v, cmd);
+        if( rc ) goto loc_error;
+        // stop processing the commands
+        pos = procedure->num_cmds;
+        rc = SQLITE_ERROR;
 
         break;
       case CMD_TYPE_SET:

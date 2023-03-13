@@ -1051,6 +1051,64 @@ int main(){
 
 
 
+  // RAISE EXCEPTION - if the procedure is called with wrong arguments
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_raise_exception(@a, @b) BEGIN"
+    " IF @a < 0 OR @b < 0 THEN"
+    "   RAISE EXCEPTION 'Negative arguments are not allowed';"
+    " END IF;"
+    " RETURN @a + @b;"
+    "END"
+  );
+
+  db_catch_msg("CALL test_raise_exception(-1, 2)", "Negative arguments are not allowed");
+  db_catch_msg("CALL test_raise_exception(1, -2)", "Negative arguments are not allowed");
+  db_check_int("CALL test_raise_exception(1, 2)", 3);
+
+  db_catch_msg("CALL test_raise_exception(-1.1, 2.2)", "Negative arguments are not allowed");
+  db_catch_msg("CALL test_raise_exception(1.1, -2.2)", "Negative arguments are not allowed");
+  db_check_double("CALL test_raise_exception(1.1, 2.2)", 3.3, 0.0001);
+
+
+  // RAISE EXCEPTION with custom message
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_raise(@a, @b) BEGIN"
+    " IF @a < 0 OR @b < 0 THEN"
+    "   RAISE EXCEPTION 'Negative arguments are not allowed: %s, %s', @a, @b;"
+    " END IF;"
+    " RETURN @a + @b;"
+    "END"
+  );
+
+  db_catch_msg("CALL test_raise(-1, 2)", "Negative arguments are not allowed: -1, 2");
+  db_catch_msg("CALL test_raise(1, -2)", "Negative arguments are not allowed: 1, -2");
+  db_check_int("CALL test_raise(1, 2)", 3);
+
+  db_catch_msg("CALL test_raise(-1.1, 2.2)", "Negative arguments are not allowed: -1.1, 2.2");
+  db_catch_msg("CALL test_raise(1.1, -2.2)", "Negative arguments are not allowed: 1.1, -2.2");
+  db_check_double("CALL test_raise(1.1, 2.2)", 3.3, 0.0001);
+
+
+  // RAISE INFO and others are not supported
+
+  db_catch(
+    "CREATE OR REPLACE PROCEDURE test_raise_info() BEGIN"
+    " RAISE INFO 'This is an info message';"
+    "END"
+  );
+
+
+  // RAISE without EXCEPTION is not supported
+
+  db_catch(
+    "CREATE OR REPLACE PROCEDURE test_raise() BEGIN"
+    " RAISE 'This is an error message';"
+    "END"
+  );
+
+
 
 
 
