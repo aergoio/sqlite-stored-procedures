@@ -55,20 +55,6 @@ struct sqlite3_array {
     sqlite3_value value[1];
 };
 
-struct value_list {
-    sqlite3_value value;
-    int type;
-    struct value_list *next;
-};
-
-struct var_list {  // or var_item
-    sqlite3_var *var;
-    struct var_list *next;
-};
-
-// TODO: the SET statement - parse and execution - in a way that it can be used
-//       both in stored procedures and in transactions
-
 typedef struct stored_proc stored_proc;
 typedef struct command command;
 
@@ -76,7 +62,7 @@ struct command {
     int type;
     char *sql;
     int nsql;
-    sqlite3_stmt  *stmt;  /* compiled statement, used in STATEMENT, SET, FOREACH and RETURN */
+    sqlite3_stmt  *stmt;        /* used in STATEMENT, SET, FOREACH and RETURN */
     sqlite3_array *input_array; /* parsed ARRAY, used in SET, FOREACH and CALL commands */
     sqlite3_var   *input_var;   /* used in the FOREACH command */
     unsigned int current_item;  /* used in the FOREACH command */
@@ -85,13 +71,11 @@ struct command {
 
     stored_proc *procedure;     /* used in CALL command */
 
-    int next_if_cmd;   // ELSEIF, ELSE, END IF
-    int related_cmd;   // LOOP, ENDLOOP, FOREACH
+    int next_if_cmd;            /* used in ELSEIF, ELSE, END IF */
+    int related_cmd;            /* used in LOOP, BREAK, CONTINUE, END LOOP, FOREACH */
 
     sqlite3_var **vars;         /* variables used in this command (array of pointers to) */
     unsigned int num_vars;
-
-    //struct command* next;
 };
 
 struct stored_proc {
@@ -100,7 +84,7 @@ struct stored_proc {
     bool is_function;
     char *error_msg;
     // commands
-    command* cmds;    // an array of commands (pointer to allocated memory)
+    command* cmds;                  // an array of commands (pointer to allocated memory)
     unsigned int num_alloc_cmds;    // the current size of the array (number of elements)
     unsigned int num_cmds;
     // variables
@@ -170,48 +154,6 @@ SQLITE_PRIVATE int skip_sql_command(char **psql){
   *psql = sql;
   return n;
 }
-
-#if 0
-SQLITE_PRIVATE int skip_delimited_sql_command(char **psql, char *delim){
-  char *sql = *psql;
-  int n;
-  int token_type = 0;
-  int ndelim = strlen(delim);
-  bool found = false;
-
-  XTRACE("skip_delimited_sql_command (%s) %s\n", delim, sql);
-
-  // there is TK_THEN...
-
-  while( (n = sqlite3GetToken((u8*)sql, &token_type)) != 0 ){
-    XTRACE("token %d %.*s\n", token_type, n, sql);
-    //if( token_type == TK_ID && n == ndelim && sqlite3_strnicmp(sql, delim, ndelim) == 0 ){
-    if( n == ndelim && sqlite3_strnicmp(sql, delim, ndelim) == 0 ){
-      found = true;
-      break;
-    }
-    sql += n;
-  }
-
-  if( !found ){
-    // if the delimiter was not found, return -1
-    return -1;
-  }
-
-  // get the size of the command
-  n = sql - *psql;
-
-  // skip the delimiter
-  sql += ndelim;
-  // skip whitespaces
-  while( sqlite3Isspace(*sql) ) sql++;
-
-  // return the position of the next token  
-  *psql = sql;
-  // return the size of the command
-  return n;
-}
-#endif
 
 SQLITE_PRIVATE int skip_delimited_sql_command(char **psql, int delimiter, int ndelim){
   char *sql = *psql;
@@ -583,9 +525,6 @@ SQLITE_PRIVATE sqlite3_var* addVariable(
   var->next = procedure->vars;
   procedure->vars = var;
 
-  /* increment the number of variables */
-  //procedure->num_vars++;
-
   return var;
 }
 
@@ -633,9 +572,6 @@ SQLITE_PRIVATE void dropAllVariables(stored_proc *procedure){
     sqlite3_free(current);
     procedure->vars = next;
   }
-
-  /* reset the number of variables */
-  //procedure->num_vars = 0;
 
 }
 
@@ -1947,6 +1883,9 @@ SQLITE_PRIVATE void prepareNewStoredProcedure(Parse *pParse, char **psql, bool o
     // creates and return a prepared statement, to be executed later
 
 #if 0
+    // sqlite3NestedParse() cannot be used because the table does not exist
+    // at this point and the INSERT command cannot be prepared
+
     // create the stored_procedures table if it does not exist
     sqlite3NestedParse(pParse,
         "CREATE TABLE IF NOT EXISTS stored_procedures ("
@@ -1966,17 +1905,6 @@ SQLITE_PRIVATE void prepareNewStoredProcedure(Parse *pParse, char **psql, bool o
         procedure->is_function,
         sql);
 #endif
-
-// sqlite3NestedParse() cannot be used because the table does not exist
-// at this point and the INSERT command cannot be prepared
-
-//! PROBLEM: the table does not exist at this point and the INSERT fails
-// SOLUTION 1: run a 3_step() to create it...
-// SOLUTION 2: add opcodes for the insertion on the table that is already
-//     referenced in the VDBE program
-// SOLUTION 3: add a new opcode to create the table and insert the procedure
-// SOLUTION 4: use the OP_SqlExec opcode
-
 
     Vdbe *v = sqlite3GetVdbe(pParse);
     if (v == NULL) goto loc_exit;
@@ -2269,7 +2197,6 @@ SQLITE_PRIVATE void prepareProcedureCall(Parse *pParse, char **psql) {
     XTRACE("pParse->nMem=%d v->nMem=%d\n", pParse->nMem, v->nMem);
     //assert( pParse->nMem==0 && v->nMem==0 );
 
-    //sqlite3VdbeAddOp0(v, OP_Halt); - already added on sqlite3FinishCoding()
     sqlite3FinishCoding(pParse);
 
 
@@ -2521,7 +2448,6 @@ SQLITE_PRIVATE int sqlite3VdbeNextResult(Vdbe *v){
     num_cols = 1;
   }
 
-  //v->nResColumn = num_cols;
   sqlite3VdbeSetNumCols(v, num_cols);
   //sqlite3VdbeSetColName(v, 0, COLNAME_NAME, "rows deleted", SQLITE_STATIC);
 
@@ -3421,16 +3347,12 @@ SQLITE_PRIVATE void releaseCommand(command* cmd) {
   if (cmd->vars) {
     sqlite3_free(cmd->vars);
   }
-  //sqlite3_free(cmd);
 }
 
 /*
 ** Release a stored procedure.
 */
 SQLITE_PRIVATE void releaseProcedure(stored_proc* procedure) {
-    //if (procedure->name) {
-    //    sqlite3_free(procedure->name);
-    //}
     if (procedure->error_msg) {
         sqlite3_free(procedure->error_msg);
     }
