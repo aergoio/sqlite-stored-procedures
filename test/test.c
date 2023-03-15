@@ -13,13 +13,14 @@ sqlite3 *db;
 
 TO BE TESTED ON STORED PROCEDURES:
 
-- RETURN
 - DECLARE
 - SET
 - IF THEN .. ELSEIF .. ELSE .. END IF
 - LOOP .. BREAK .. CONTINUE .. END LOOP
-- FOREACH .. END LOOP
+- FOREACH .. BREAK .. CONTINUE .. END LOOP
 - CALL
+- RETURN
+- RAISE EXCEPTION
 
 some tests:
 
@@ -50,7 +51,6 @@ also:
   - IF with CALL
   - IF with LOOP
   - IF with FOREACH
-  - IF with nested IF
   - IF with nested LOOP
   - IF with nested FOREACH
 - nested IF blocks
@@ -68,6 +68,7 @@ also:
 - FOREACH with UPDATE and RETURNING
 - FOREACH with DELETE and RETURNING
 - FOREACH with CALL
+- FOREACH VALUE
 - FOREACH block with BREAK
 - FOREACH block with CONTINUE
 - FOREACH block with RETURN
@@ -77,6 +78,8 @@ also:
 - CALL (another procedure) with fixed/literal arguments
 - CALL (another procedure) with variables as arguments
 - recursive CALL (should fail)
+
+- RAISE EXCEPTION
 
 
 invalid syntax:
@@ -843,7 +846,7 @@ int main(){
   // FOREACH with ARRAY literal - 1 simple value per row
 
   db_execute(
-    "CREATE OR REPLACE PROCEDURE sum_array(@arr) BEGIN"
+    "CREATE OR REPLACE PROCEDURE sum_array() BEGIN"
     " SET @sum = 0;"
     " FOREACH @item IN ARRAY(11,22,33) DO"
     "   SET @sum = @sum + @item;"
@@ -852,7 +855,7 @@ int main(){
     "END"
   );
 
-  db_check_int("CALL sum_array( ARRAY(11,22,33) )", 66);
+  db_check_int("CALL sum_array(  )", 66);
 
 
   // FOREACH with ARRAY literal - 1 array per row - nested FOREACH

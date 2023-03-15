@@ -52,15 +52,34 @@ void print_error(int rc, char *desc, char *sql, const char *function, int line){
 /****************************************************************************/
 
 void db_execute_fn(sqlite3 *db, char *sql, const char *function, int line){
-  char *zErrMsg=0;
+  sqlite3_stmt *stmt=0;
+  const char *zTail=0;
   int rc;
 
-  rc = sqlite3_exec(db, sql, 0, 0, &zErrMsg);
+  rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &zTail);
   if( rc!=SQLITE_OK ){
-    print_error(rc, zErrMsg, sql, function, line);
-    sqlite3_free(zErrMsg);
+    print_error(rc, "sqlite3_prepare", sql, function, line);
     QUIT_TEST();
   }
+  if( zTail && zTail[0] ){
+    print_error(rc, "tail returned", sql, function, line);
+    QUIT_TEST();
+  }
+
+  do{
+    rc = sqlite3_step(stmt);
+  }while( rc==SQLITE_ROW );
+
+  if( rc==SQLITE_DONE ){
+    rc = SQLITE_OK;
+  }
+
+  if( rc!=SQLITE_OK ){
+    print_error(rc, sqlite3_errmsg(db), sql, function, line);
+    QUIT_TEST();
+  }
+
+  sqlite3_finalize(stmt);
 
 }
 
@@ -123,7 +142,7 @@ void db_execute_many_fn(sqlite3 *db, char *sql, char *types, int count,
 
   db_execute_fn(db, "BEGIN", function, line);
 
-  rc = sqlite3_prepare(db, sql, -1, &stmt, NULL);
+  rc = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   if( rc!=SQLITE_OK ){
     print_error(rc, zErrMsg, sql, function, line);
     sqlite3_free(zErrMsg);
@@ -171,7 +190,7 @@ void db_check_int_fn(sqlite3 *db, char *sql, int expected, const char *function,
 
   do{
 
-    rc = sqlite3_prepare(db, sql, -1, &stmt, &zTail);
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &zTail);
     if( rc!=SQLITE_OK ){
       print_error(rc, "sqlite3_prepare", sql, function, line);
       QUIT_TEST();
@@ -234,7 +253,7 @@ void db_check_double_fn(sqlite3 *db, char *sql, double expected, double precisio
 
   do{
 
-    rc = sqlite3_prepare(db, sql, -1, &stmt, &zTail);
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &zTail);
     if( rc!=SQLITE_OK ){
       print_error(rc, "sqlite3_prepare", sql, function, line);
       QUIT_TEST();
@@ -297,7 +316,7 @@ void db_check_str_fn(sqlite3 *db, char *sql, char *expected, const char *functio
 
   do{
 
-    rc = sqlite3_prepare(db, sql, -1, &stmt, &zTail);
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &zTail);
     if( rc!=SQLITE_OK ){
       print_error(rc, "sqlite3_prepare", sql, function, line);
       QUIT_TEST();
@@ -395,7 +414,7 @@ void db_check_many_fn(sqlite3 *db, char *sql, const char *function, int line, ..
 
   do{
 
-    rc = sqlite3_prepare(db, sql, -1, &stmt, &zTail);
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &zTail);
     if( rc!=SQLITE_OK ){
       print_error(rc, "sqlite3_prepare", sql, function, line);
       QUIT_TEST();
@@ -474,7 +493,7 @@ void db_check_empty_fn(sqlite3 *db, char *sql, const char *function, int line){
 
   do{
 
-    rc = sqlite3_prepare(db, sql, -1, &stmt, &zTail);
+    rc = sqlite3_prepare_v2(db, sql, -1, &stmt, &zTail);
     if( rc!=SQLITE_OK ){
       print_error(rc, "sqlite3_prepare", sql, function, line);
       QUIT_TEST();
