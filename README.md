@@ -1,4 +1,5 @@
-[Aergo](https://aergo.io) presents
+<a href="https://aergo.io"><img height="20%" width="20%" src="https://user-images.githubusercontent.com/7624275/225525458-5aaf74d3-286c-483d-ad2a-9eadc9dbe9ac.png"></a>
+presents:
 
 # Stored Procedures for SQLite
 
