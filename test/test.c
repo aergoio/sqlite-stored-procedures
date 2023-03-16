@@ -1260,6 +1260,10 @@ END
 
 
   sqlite3_close(db);
+
+  /* release global memory - to make valgrind happy */
+  sqlite3_shutdown();
+
   puts("OK. All tests pass!");
   return 0;
 

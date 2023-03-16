@@ -98,6 +98,10 @@ void db_catch_fn(sqlite3 *db, char *sql, const char *function, int line){
     QUIT_TEST();
   }
 
+  if( zErrMsg ){
+    sqlite3_free(zErrMsg);
+  }
+
 }
 
 #define db_catch(sql) db_catch_fn(db, sql, __FUNCTION__, __LINE__)

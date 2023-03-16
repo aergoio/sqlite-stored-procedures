@@ -1,3 +1,4 @@
+#include <stdbool.h>
 
 #ifdef SQLITE_DEBUG
 #define XTRACE(...)   printf(__VA_ARGS__)
@@ -82,6 +83,7 @@ struct stored_proc {
     sqlite3 *db;
     char name[128];
     bool is_function;
+    char *code;
     char *error_msg;
     // commands
     command* cmds;                  // an array of commands (pointer to allocated memory)
@@ -720,7 +722,6 @@ SQLITE_PRIVATE int parseStoredProcedure(Parse *pParse, stored_proc* procedure, c
 
     // get the procedure name
     n = sqlite3GetToken((u8*)sql, &tokenType);
-    XTRACE("token: %s  tokenType: %d\n", sql, tokenType);
     if( tokenType!=TK_ID || n == 0 ){
       goto loc_invalid;
     }
@@ -958,7 +959,6 @@ SQLITE_PRIVATE int parse_variables_list(
 
     /* parse the variable name */
     n = sqlite3GetToken((u8*)sql, &tokenType);
-    XTRACE("token: %s  tokenType: %d\n", sql, tokenType);
     if( tokenType!=TK_VARIABLE ){
       goto loc_invalid_token;
     }
@@ -994,7 +994,6 @@ SQLITE_PRIVATE int parse_variables_list(
 
     /* parse the next token */
     n = sqlite3GetToken((u8*)sql, &tokenType);
-    XTRACE("token: %s  tokenType: %d\n", sql, tokenType);
 
     /* is it a variable type? */
     if( tokenType==TK_ID && expect_type ){
@@ -1006,7 +1005,6 @@ SQLITE_PRIVATE int parse_variables_list(
       sql += n;
       /* get the next token */
       n = sqlite3GetToken((u8*)sql, &tokenType);
-      XTRACE("token: %s  tokenType: %d\n", sql, tokenType);
     }
 
     if( tokenType==TK_COMMA ){
@@ -1158,7 +1156,6 @@ SQLITE_PRIVATE int parseSetStatement(
 
   /* Read the next token */
   n = sqlite3GetToken((u8*)sql, &tokenType);
-  XTRACE("token: %s  tokenType: %d\n", sql, tokenType);
 
   //if( tokenType==TK_ARRAY ){
   if( n==5 && sqlite3_strnicmp(sql, "ARRAY", 5)==0 ){
@@ -2206,10 +2203,7 @@ loc_exit:
 
     // errors can be set on execution using the sqlite3VdbeError() function
 
-    // release the procedure code
-    if (code) {
-      //sqlite3_free(code);
-    }
+    procedure->code = code;
 
     if (rc != SQLITE_OK) {
       if (v) {
@@ -2735,7 +2729,6 @@ SQLITE_PRIVATE int executeSetCommand(Vdbe *v, command *cmd) {
     int n, tokenType;
     /* Read the next token */
     n = sqlite3GetToken((u8*)sql, &tokenType);
-    XTRACE("token: %s  tokenType: %d\n", sql, tokenType);
     if( n > cmd->nsql ){
       // this should not happen
       sqlite3VdbeError(v, "invalid token: %s", sql);
@@ -3362,7 +3355,13 @@ SQLITE_PRIVATE void releaseProcedure(stored_proc* procedure) {
         }
         sqlite3_free(procedure->cmds);
     }
+    if (procedure->params) {
+        sqlite3_free(procedure->params);
+    }
     dropAllVariables(procedure);
+    if (procedure->code) {
+      sqlite3_free(procedure->code);
+    }
     sqlite3_free(procedure);
 }
 

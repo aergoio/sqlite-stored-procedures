@@ -74,14 +74,16 @@ LIBFLAGS := $(LIBFLAGS) $(CFLAGS) -DSQLITE_USE_URI=1 -DSQLITE_ENABLE_JSON1 -DSQL
 .PHONY:  install debug test tests clean
 
 
-all:	 $(LIBRARY) $(SSHELL)
+all:      $(LIBRARY) $(SSHELL)
 
-debug:   $(LIBRARY) $(SSHELL)
+debug:    $(LIBRARY) $(SSHELL)
 
-ios:	 lib$(SHORT).a lib$(SHORT).dylib
+ios:      lib$(SHORT).a lib$(SHORT).dylib
 
 #debug:   export LIBFLAGS := -g -DSQLITE_DEBUG=1 -DDEBUGPRINT $(DEBUGFLAGS) $(LIBFLAGS)
-debug:   export LIBFLAGS := -g -DSQLITE_DEBUG $(DEBUGFLAGS) $(LIBFLAGS)
+debug:    export LIBFLAGS := -g -DSQLITE_DEBUG $(DEBUGFLAGS) $(LIBFLAGS)
+
+valgrind: export LIBFLAGS := -g -DSQLITE_DEBUG $(DEBUGFLAGS) $(LIBFLAGS)
 
 
 # Windows
@@ -114,7 +116,7 @@ endif
 
 # Linux / Unix
 lib$(SHORT).so.0.0.1: $(SHORT).o
-	$(CC) -shared -Wl,-soname,$(SONAME) $^ -o $@ $(LDFLAGS)
+	$(CC) -shared -Wl,-soname,$(SONAME) $^ -o $@ -ldl $(LDFLAGS)
 ifeq ($(MAKECMDGOALS),valgrind)
 else ifeq ($(MAKECMDGOALS),debug)
 else
@@ -160,17 +162,24 @@ clean:
 	rm -f *.o lib$(SHORT).a lib$(SHORT).dylib $(LIBRARY) $(LIBNICK1) $(LIBNICK2) $(SSHELL) test/runtest
 
 test: test/runtest
-ifeq ($(OS),OSX)
-	cd test && DYLD_LIBRARY_PATH=.. ./runtest
-else	# Linux
-	cd test && LD_LIBRARY_PATH=.. ./runtest
+ifeq ($(TARGET_OS),Mac)
+	cd test && DYLD_LIBRARY_PATH=..:/usr/local/lib ./runtest
+else
+	cd test && LD_LIBRARY_PATH=..:/usr/local/lib ./runtest
+endif
+
+valgrind: $(LIBRARY) test/runtest
+ifeq ($(TARGET_OS),Mac)
+	cd test && DYLD_LIBRARY_PATH=..:/usr/local/lib valgrind --leak-check=full --show-leak-kinds=all ./runtest
+else
+	cd test && LD_LIBRARY_PATH=..:/usr/local/lib valgrind --leak-check=full --show-leak-kinds=all ./runtest
 endif
 
 test/runtest: test/test.c
 	$(CC) $< -o $@ -L. -lsqlite3
 
 test2: test/test.py
-ifeq ($(OS),Windows_NT)
+ifeq ($(TARGET_OS),Windows)
 ifeq ($(PY_HOME),)
 	@echo "PY_HOME is not set"
 else
