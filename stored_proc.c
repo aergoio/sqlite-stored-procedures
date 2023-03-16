@@ -725,6 +725,11 @@ SQLITE_PRIVATE int parseStoredProcedure(Parse *pParse, stored_proc* procedure, c
     if( tokenType!=TK_ID || n == 0 ){
       goto loc_invalid;
     }
+    // check the length of the procedure name
+    if( n > sizeof(procedure->name)-1 ){
+      sqlite3ErrorMsg(pParse, "procedure name too long");
+      goto loc_invalid;
+    }
     // store it into the procedure object
     strncpy(procedure->name, sql, n);
     procedure->name[n] = '\0';
@@ -1904,7 +1909,7 @@ SQLITE_PRIVATE void prepareNewStoredProcedure(Parse *pParse, char **psql, bool o
 #endif
 
     Vdbe *v = sqlite3GetVdbe(pParse);
-    if (v == NULL) goto loc_exit;
+    if (v == NULL) { rc = SQLITE_NOMEM; goto loc_exit; }
 
     // create the stored_procedures table if it does not exist
     const char *sql2 =
@@ -1966,7 +1971,7 @@ SQLITE_PRIVATE int getStoredProcedure(sqlite3* db, char* name, int name_len, cha
     rc = sqlite3_step(stmt);
     if (rc == SQLITE_ROW) {
         // get the code
-        code = sqlite3_mprintf("%s", sqlite3_column_text(stmt, 0));
+        code = sqlite3StrDup((char*)sqlite3_column_text(stmt, 0));
         rc = SQLITE_OK;
     } else if (rc == SQLITE_DONE) {
         // no stored procedure found
@@ -2129,6 +2134,7 @@ SQLITE_PRIVATE void prepareProcedureCall(Parse *pParse, char **psql) {
       goto loc_exit;
     }
     procedure->db = pParse->db;
+    procedure->code = code;
 
     // parse the stored procedure to be executed
     code2 = code;
@@ -2203,17 +2209,20 @@ loc_exit:
 
     // errors can be set on execution using the sqlite3VdbeError() function
 
-    procedure->code = code;
-
     if (rc != SQLITE_OK) {
       if (v) {
         v->pCall = NULL;
       }
       if (call) {
+        call->procedure = NULL;
         releaseProcedureCall(call);
       }
-      if (procedure && call->procedure==NULL) {
+      if (procedure) {
+        procedure->code = NULL;
         releaseProcedure(procedure);
+      }
+      if (code) {
+        sqlite3_free(code);
       }
       if (pParse->rc == SQLITE_OK) {
         pParse->rc = rc;

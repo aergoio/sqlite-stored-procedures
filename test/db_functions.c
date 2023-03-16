@@ -43,9 +43,9 @@ loc_invalid:
 
 /****************************************************************************/
 
-void print_error(int rc, char *desc, char *sql, const char *function, int line){
+void print_error(int rc, const char *desc, const char *sql, const char *function, int line){
 
-  printf("\n\tFAIL %d: %s\n\tsql: %s\n\tfunction: %s\n\tline: %d\n", rc, desc, sql, function, line);
+  printf("\n\tFAIL %d: %s\n\terror: %s\n\tsql: %s\n\tfunction: %s\n\tline: %d\n", rc, desc, sqlite3_errmsg(db), sql, function, line);
 
 }
 
