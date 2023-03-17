@@ -161,7 +161,7 @@ endif
 clean:
 	rm -f *.o lib$(SHORT).a lib$(SHORT).dylib $(LIBRARY) $(LIBNICK1) $(LIBNICK2) $(SSHELL) test/runtest
 
-test: test/runtest
+test: $(LIBRARY) test/runtest
 ifeq ($(TARGET_OS),Mac)
 	cd test && DYLD_LIBRARY_PATH=..:/usr/local/lib ./runtest
 else
@@ -176,7 +176,7 @@ else
 endif
 
 sanitizer:
-	gcc -fsanitize=address sqlite3.c test/test.c -o test-with-sanitizer
+	gcc -fsanitize=address sqlite3.c test/test.c -pthread -ldl -lpthread -o test-with-sanitizer
 	./test-with-sanitizer
 	rm test-with-sanitizer
 
