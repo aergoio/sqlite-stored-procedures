@@ -2191,7 +2191,7 @@ SQLITE_PRIVATE void prepareProcedureCall(Parse *pParse, char **psql) {
     // store the procedure call object in the Vdbe object
     v->pCall = call;
     // add the 3 opcodes
-    sqlite3VdbeAddOp4(v, OP_CallProcedure, 0, 0, 0, (char*)call, P4_PROCEDURE);
+    sqlite3VdbeAddOp0(v, OP_CallProcedure);
     sqlite3VdbeAddOp0(v, OP_Noop);  /* replaced by a OP_ResultRow opcode */
     assert( POS_RESULT_ROW==sqlite3VdbeCurrentAddr(v)-1 );
     sqlite3VdbeAddOp0(v, OP_Noop);  /* replaced by a OP_NextResult opcode */
