@@ -71,7 +71,7 @@ endif
 LIBFLAGS := $(LIBFLAGS) $(CFLAGS) -DSQLITE_USE_URI=1 -DSQLITE_ENABLE_JSON1 -DSQLITE_THREADSAFE=1 -DHAVE_USLEEP -DSQLITE_ENABLE_COLUMN_METADATA
 
 
-.PHONY:  install debug test tests clean
+.PHONY:  install debug test tests clean valgrind sanitizer
 
 
 all:      $(LIBRARY) $(SSHELL)
@@ -174,6 +174,11 @@ ifeq ($(TARGET_OS),Mac)
 else
 	cd test && LD_LIBRARY_PATH=..:/usr/local/lib valgrind --leak-check=full --show-leak-kinds=all ./runtest
 endif
+
+sanitizer:
+	gcc -fsanitize=address sqlite3.c test/test.c -o test-with-sanitizer
+	./test-with-sanitizer
+	rm test-with-sanitizer
 
 test/runtest: test/test.c
 	$(CC) $< -o $@ -L. -lsqlite3
