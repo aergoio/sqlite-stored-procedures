@@ -2820,8 +2820,10 @@ SQLITE_PRIVATE int executeSetCommand(Vdbe *v, command *cmd) {
         array->num_items = num_cols;
         // store the result in the array
         for (int ncol = 0; ncol < num_cols; ncol++) {
+          sqlite3_value *array_value = &array->value[ncol];
           sqlite3_value *col_value = sqlite3_column_value(cmd->stmt, ncol);
-          sqlite3VdbeMemCopy(&array->value[ncol], col_value);
+          sqlite3VdbeMemInit(array_value, procedure->db, MEM_Null);
+          sqlite3VdbeMemCopy(array_value, col_value);
         }
 
         // prepare to store the array in the parent array
@@ -2849,6 +2851,7 @@ SQLITE_PRIVATE int executeSetCommand(Vdbe *v, command *cmd) {
         }
         // store the array in the parent array
         sqlite3_value *value = &parent_array->value[parent_array->num_items-1];
+        sqlite3VdbeMemInit(value, procedure->db, MEM_Null);
         sqlite3ValueSetArray(value, array, sqlite3_free_array);
 
       } else {

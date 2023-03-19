@@ -341,9 +341,76 @@ int main(){
   db_check_double("CALL set_expression(2.2)", 7.4, 0.0001);
 
 
+  // SET with SELECT from table (many rows)
+
+  db_execute("CREATE TABLE test (id integer primary key, a integer, b real, c text, d blob)");
+  db_execute("INSERT INTO test (a,b,c,d) VALUES (11,2.5,'hello!',x'6120622063')");
+  db_execute("INSERT INTO test (a,b,c,d) VALUES (22,3.5,'world!',x'6220622064')");
+  db_execute("INSERT INTO test (a,b,c,d) VALUES (33,4.5,'foo!',x'6320622065')");
+  db_execute("INSERT INTO test (a,b,c,d) VALUES (44,5.5,'bar!',x'6420622066')");
+
+  db_execute(
+    "CREATE PROCEDURE set_select_table(@column) BEGIN "
+    " IF @column = 'a' THEN"
+    "   SET @values = (SELECT a FROM test);"
+    " ELSEIF @column = 'b' THEN"
+    "   SET @values = (SELECT b FROM test);"
+    " ELSEIF @column = 'c' THEN"
+    "   SET @values = (SELECT c FROM test);"
+    " ELSEIF @column = 'd' THEN"
+    "   SET @values = (SELECT d FROM test);"
+    " ELSE"
+    "   SET @values = (SELECT * FROM test);"
+    " END IF;"
+    "RETURN @values;"
+    "END;"
+  );
+
+  db_check_many("CALL set_select_table('a')",
+    "11",
+    "22",
+    "33",
+    "44",
+    NULL
+  );
+
+  db_check_many("CALL set_select_table('b')",
+    "2.5",
+    "3.5",
+    "4.5",
+    "5.5",
+    NULL
+  );
+
+  db_check_many("CALL set_select_table('c')",
+    "hello!",
+    "world!",
+    "foo!",
+    "bar!",
+    NULL
+  );
+
+  db_check_many("CALL set_select_table('d')",
+    "a b c",
+    "b b d",
+    "c b e",
+    "d b f",
+    NULL
+  );
+
+  db_check_many("CALL set_select_table('x')",
+    "1|11|2.5|hello!|a b c",
+    "2|22|3.5|world!|b b d",
+    "3|33|4.5|foo!|c b e",
+    "4|44|5.5|bar!|d b f",
+    NULL
+  );
+
+
   // SET with INSERT and RETURNING
 #if 0
-  db_execute("create table test (id integer primary key, a integer, b real, c text, d blob)");
+  db_execute("DROP TABLE IF EXISTS test");
+  db_execute("CREATE TABLE test (id integer primary key, a integer, b real, c text, d blob)");
 
   db_execute(
     "CREATE PROCEDURE set_insert_returning() BEGIN "
@@ -456,6 +523,24 @@ int main(){
 
   db_check_int("CALL test_call2(10, 2, 1)", 4);
   db_check_double("CALL test_call2(100.0, 8, 2)", 10.5, 0.0001);
+
+
+  // SET with CALL - returning many rows on a single call
+
+  db_execute(
+    "CREATE PROCEDURE set_call_many() BEGIN "
+    "SET @a = (CALL echo(ARRAY(11,2.5,'hello!',x'6120622063')));"
+    "RETURN @a;"
+    "END;"
+  );
+
+  db_check_many("CALL set_call_many()",
+    "11",
+    "2.5",
+    "hello!",
+    "a b c",
+    NULL
+  );
 
 
 
