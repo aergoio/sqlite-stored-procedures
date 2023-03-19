@@ -1059,6 +1059,39 @@ int main(){
   db_check_int("CALL test_call()", 10);
 
 
+  // FOREACH with CALL and many rows
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE set_call_many() BEGIN "
+    "SET @values = (CALL echo(ARRAY(11,2.5,'hello!',x'6120622063')));"
+    "SET @ret = '';"
+    "FOREACH @value IN @values DO "
+    "  SET @ret = @ret || @value || ',';"
+    "END LOOP;"
+    "RETURN @ret;"
+    "END;"
+  );
+
+  db_check_str("CALL set_call_many()", "11,2.5,hello!,a b c,");
+
+
+  // FOREACH with CALL and a single row
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE set_call_single() BEGIN "
+    "SET @values = (CALL echo(123));"
+    "SET @ret = '';"
+    "FOREACH @value IN @values DO "
+    "  SET @ret = @ret || @value || ',';"
+    "END LOOP;"
+    "RETURN @ret;"
+    "END;"
+  );
+
+  db_check_str("CALL set_call_single()", "123,");
+
+
+
   // FOREACH block with BREAK
 
   db_execute(
@@ -1114,6 +1147,10 @@ int main(){
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+////////////////////////////////////////////////////////////////////////////////
+
 
   // CALL (another procedure) without arguments
   // CALL (another procedure) with fixed/literal arguments
@@ -1137,6 +1174,11 @@ int main(){
   db_check_int("CALL mult(3, 4)", 12);
   db_check_int("CALL mult(9, 3)", 27);
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+// RAISE EXCEPTION
+////////////////////////////////////////////////////////////////////////////////
 
 
   // RAISE EXCEPTION - if the procedure is called with wrong arguments
@@ -1197,6 +1239,7 @@ int main(){
   );
 
 
+////////////////////////////////////////////////////////////////////////////////
 
 
 
