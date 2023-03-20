@@ -3,6 +3,8 @@ presents:
 
 # Stored Procedures for SQLite
 
+<p align="right"><a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README-zh.md">中文</a></p>
+
 Example procedure:
 
 ```
