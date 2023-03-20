@@ -2197,9 +2197,6 @@ SQLITE_PRIVATE void prepareProcedureCall(Parse *pParse, char **psql) {
     sqlite3VdbeAddOp0(v, OP_Noop);  /* replaced by a OP_NextResult opcode */
     assert( POS_NEXT_RESULT==sqlite3VdbeCurrentAddr(v)-1 );
 
-    XTRACE("pParse->nMem=%d v->nMem=%d\n", pParse->nMem, v->nMem);
-    //assert( pParse->nMem==0 && v->nMem==0 );
-
     sqlite3FinishCoding(pParse);
 
 
