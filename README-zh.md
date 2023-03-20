@@ -3,7 +3,7 @@
 
 # SQLite 存储过程
 
-<p align="right"><a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README.md">English</a></p>
+<p align="right"><a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README.md">English</a> | <a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README-ja.md">日本語</a> | <a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README-ru.md">Русский</a></p>
 
 示例过程：
 

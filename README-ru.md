@@ -3,7 +3,7 @@
 
 # Хранимые процедуры для SQLite
 
-<p align="right"><a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README.md">English</a> | <a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README-zh.md">中文</a></p>
+<p align="right"><a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README.md">English</a> | <a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README-zh.md">中文</a> | <a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README-ja.md">日本語</a></p>
 
 Пример процедуры:
 

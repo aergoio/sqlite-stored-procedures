@@ -3,7 +3,7 @@
 
 # SQLiteのストアドプロシージャ
 
-<p align="right"><a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README-zh.md">中文</a></p>
+<p align="right"><a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README.md">English</a> | <a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README-zh.md">中文</a> | <a href="https://github.com/aergoio/sqlite-stored-procedures/blob/master/README-ru.md">Русский</a></p>
 
 例の手順：
 
