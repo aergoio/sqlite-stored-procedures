@@ -1240,6 +1240,49 @@ int main(){
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// ASSERT
+////////////////////////////////////////////////////////////////////////////////
+
+
+  // ASSERT - if the procedure is called with wrong arguments
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_assert(@a, @b) BEGIN"
+    " ASSERT @a > 0 AND @b > 0, 'a and b must be greater than 0';"
+    " RETURN @a + @b;"
+    "END"
+  );
+
+  db_check_int("CALL test_assert(1, 2)", 3);
+  db_catch_msg("CALL test_assert(-1, 2)", "a and b must be greater than 0");
+  db_catch_msg("CALL test_assert(1, -2)", "a and b must be greater than 0");
+  db_catch_msg("CALL test_assert(-1, -2)", "a and b must be greater than 0");
+
+  db_check_double("CALL test_assert(1.1, 2.2)", 3.3, 0.0001);
+  db_catch_msg("CALL test_assert(-1.1, 2.2)", "a and b must be greater than 0");
+  db_catch_msg("CALL test_assert(1.1, -2.2)", "a and b must be greater than 0");
+  db_catch_msg("CALL test_assert(-1.1, -2.2)", "a and b must be greater than 0");
+
+
+  // ASSERT with custom message
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_assert_custom(@a, @b) BEGIN"
+    " ASSERT @a > 0 AND @b > 0, 'Negative arguments are not allowed: %s, %s', @a, @b;"
+    " RETURN @a + @b;"
+    "END"
+  );
+
+  db_catch_msg("CALL test_assert_custom(-1, 2)", "Negative arguments are not allowed: -1, 2");
+  db_catch_msg("CALL test_assert_custom(1, -2)", "Negative arguments are not allowed: 1, -2");
+  db_check_int("CALL test_assert_custom(1, 2)", 3);
+
+  db_catch_msg("CALL test_assert_custom(-1.1, 2.2)", "Negative arguments are not allowed: -1.1, 2.2");
+  db_catch_msg("CALL test_assert_custom(1.1, -2.2)", "Negative arguments are not allowed: 1.1, -2.2");
+  db_check_double("CALL test_assert_custom(1.1, 2.2)", 3.3, 0.0001);
+
+
+////////////////////////////////////////////////////////////////////////////////
 
 
 

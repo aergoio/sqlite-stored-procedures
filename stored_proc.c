@@ -11,17 +11,18 @@
 #define CMD_TYPE_STATEMENT  3
 #define CMD_TYPE_RETURN     4
 #define CMD_TYPE_RAISE      5
+#define CMD_TYPE_ASSERT     6
 
-#define CMD_TYPE_IF         6
-#define CMD_TYPE_ELSEIF     7
-#define CMD_TYPE_ELSE       8
-#define CMD_TYPE_ENDIF      9
+#define CMD_TYPE_IF         7
+#define CMD_TYPE_ELSEIF     8
+#define CMD_TYPE_ELSE       9
+#define CMD_TYPE_ENDIF      10
 
-#define CMD_TYPE_LOOP       10
-#define CMD_TYPE_ENDLOOP    11
-#define CMD_TYPE_BREAK      12
-#define CMD_TYPE_CONTINUE   13
-#define CMD_TYPE_FOREACH    14
+#define CMD_TYPE_LOOP       11
+#define CMD_TYPE_ENDLOOP    12
+#define CMD_TYPE_BREAK      13
+#define CMD_TYPE_CONTINUE   14
+#define CMD_TYPE_FOREACH    15
 
 
 #define CMD_FLAG_STORE_AS_ARRAY  1
@@ -61,8 +62,8 @@ typedef struct command command;
 
 struct command {
     int type;
-    char *sql;
-    int nsql;
+    char *sql, *sql2;
+    int  nsql, nsql2;
     sqlite3_stmt  *stmt;        /* used in STATEMENT, SET, FOREACH and RETURN */
     sqlite3_array *input_array; /* parsed ARRAY, used in SET, FOREACH and CALL commands */
     sqlite3_var   *input_var;   /* used in the FOREACH command */
@@ -608,6 +609,7 @@ SQLITE_PRIVATE int parseDeclareStatement(Parse *pParse, stored_proc* procedure, 
 SQLITE_PRIVATE int parseSetStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql);
 SQLITE_PRIVATE int parseReturnStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql);
 SQLITE_PRIVATE int parseRaiseStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql);
+SQLITE_PRIVATE int parseAssertStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql);
 
 SQLITE_PRIVATE int parseIfStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql);
 SQLITE_PRIVATE int parseElseIfStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql);
@@ -634,6 +636,8 @@ SQLITE_PRIVATE char* command_type_str(int type) {
             return "RETURN";
         case CMD_TYPE_RAISE:
             return "RAISE";
+        case CMD_TYPE_ASSERT:
+            return "ASSERT";
 
         case CMD_TYPE_STATEMENT:
             return "STATEMENT";
@@ -853,6 +857,10 @@ SQLITE_PRIVATE int parse_procedure_body(Parse *pParse, stored_proc* procedure, c
         } else if (sqlite3_strnicmp(sql, "RAISE", 5) == 0) {
             rc = parse_new_command(pParse, procedure, CMD_TYPE_RAISE, &sql);
 
+        // if the SQL command starts with "ASSERT", then it is an assert statement
+        } else if (sqlite3_strnicmp(sql, "ASSERT", 5) == 0) {
+            rc = parse_new_command(pParse, procedure, CMD_TYPE_ASSERT, &sql);
+
         // process IF, ELSEIF, ELSE and END IF
         } else if (sqlite3_strnicmp(sql, "IF", 2) == 0 && sqlite3Isspace(sql[2])) {
             rc = parse_new_command(pParse, procedure, CMD_TYPE_IF, &sql);
@@ -1051,6 +1059,8 @@ SQLITE_PRIVATE int parse_new_command(Parse *pParse, stored_proc* procedure, int 
             return parseReturnStatement(pParse, procedure, pos, psql);
         case CMD_TYPE_RAISE:
             return parseRaiseStatement(pParse, procedure, pos, psql);
+        case CMD_TYPE_ASSERT:
+            return parseAssertStatement(pParse, procedure, pos, psql);
 
         case CMD_TYPE_IF:
             return parseIfStatement(pParse, procedure, pos, psql);
@@ -1335,6 +1345,43 @@ loc_invalid:
     }
     *psql = sql;
     return SQLITE_ERROR;
+}
+
+/*
+** Parse an ASSERT statement.
+*/
+SQLITE_PRIVATE int parseAssertStatement(Parse *pParse, stored_proc* procedure, int pos, char** psql) {
+    command *cmd = &procedure->cmds[pos];
+    char *sql = *psql;
+    int rc = SQLITE_OK;
+
+    // skip "ASSERT" and whitespaces
+    sql += 6;
+    while (sqlite3Isspace(*sql)) sql++;
+
+    // store the condition expression
+    cmd->sql = sql;
+    cmd->nsql = skip_delimited_sql_command(&sql, TK_COMMA, 1);
+    if (cmd->nsql < 0) {
+        sqlite3ErrorMsg(pParse, "expected format: ASSERT condition, error message");
+        return SQLITE_ERROR;
+    }
+
+    // store the error message expression
+    cmd->sql2 = sql;
+    cmd->nsql2 = skip_delimited_sql_command(&sql, TK_SEMI, 1);
+    if (cmd->nsql2 < 0) {
+        sqlite3ErrorMsg(pParse, "invalid error message in ASSERT statement");
+        return SQLITE_ERROR;
+    }
+
+    // skip whitespaces
+    while (sqlite3Isspace(*sql)) sql++;
+
+    // store the current parsing position on the psql pointer
+    *psql = sql;
+
+    return SQLITE_OK;
 }
 
 
@@ -2248,7 +2295,7 @@ SQLITE_PRIVATE int execute_expression(Vdbe *v, command *cmd, bool* bool_result){
     cmd->sql = sqlite3_mprintf("SELECT %.*s", cmd->nsql, cmd->sql);
     cmd->nsql += 7;
     if( cmd->sql==NULL ) return SQLITE_NOMEM;
-    // mark that this SQL command is dynamic
+    // mark that this SQL command string is dynamically allocated
     cmd->flags |= CMD_FLAG_DYNAMIC_SQL;
   }
 
@@ -2613,6 +2660,49 @@ SQLITE_PRIVATE int executeRaiseCommand(Vdbe *v, command *cmd) {
 
   // return the error code
   return rc;
+}
+
+/*
+** Execute an ASSERT statement.
+*/
+SQLITE_PRIVATE int executeAssertCommand(Vdbe *v, command *cmd) {
+  stored_proc *procedure = cmd->procedure;
+  sqlite3 *db = procedure->db;
+  char *sql, *msg=NULL;
+  int rc = SQLITE_OK;
+  bool result;
+
+  // evaluate the condition expression
+  rc = execute_expression(v, cmd, &result);
+  if (rc != SQLITE_OK) {
+    return rc;
+  }
+
+  // if the condition is true, we're done
+  if (result) {
+    return SQLITE_OK;
+  }
+
+  // condition failed - evaluate the error message expression
+  sql = sqlite3_mprintf("SELECT printf(%.*s)", cmd->nsql2, cmd->sql2);
+  if (sql == NULL) {
+    return SQLITE_NOMEM;
+  }
+
+  // get the formatted error message
+  rc = db_query_str(procedure, sql, &msg);
+  sqlite3_free(sql);
+  if (rc != SQLITE_OK) {
+    sqlite3VdbeError(v, "%s", sqlite3_errmsg(db));
+    return rc;
+  }
+
+  // set the error message
+  sqlite3VdbeError(v, "Assertion failed: %s", msg);
+  sqlite3_free(msg);
+
+  // return the error code
+  return SQLITE_ERROR;
 }
 
 /*
@@ -3150,6 +3240,12 @@ SQLITE_PRIVATE int executeStoredProcedure(Vdbe *v, procedure_call *call) {
         // stop processing the commands
         pos = procedure->num_cmds;
         rc = SQLITE_ERROR;
+
+        break;
+      case CMD_TYPE_ASSERT:
+        // process the ASSERT command
+        rc = executeAssertCommand(v, cmd);
+        if( rc ) goto loc_error;
 
         break;
       case CMD_TYPE_SET:
