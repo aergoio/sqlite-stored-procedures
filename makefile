@@ -181,7 +181,7 @@ sanitizer:
 	rm test-with-sanitizer
 
 test/runtest: test/test.c
-	$(CC) $< -o $@ -L. -lsqlite3
+	$(CC) $< -o $@ -I. -L. -lsqlite3
 
 test2: test/test.py
 ifeq ($(TARGET_OS),Windows)
