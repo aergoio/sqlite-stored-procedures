@@ -21,7 +21,7 @@ END;
 如何调用它：
 
 ```sql
-CALL add_new_sale(LIST( LIST('DJI Avata',1,1168.00), LIST('Huawei P50',1,799.90), LIST('Xiaomi',2,249.99) ));
+CALL add_new_sale([['DJI Avata',1,1168.00], ['Huawei P50',1,799.90], ['Xiaomi',2,249.99]]);
 ```
 
 ## 等等，但是为什么？
@@ -99,7 +99,7 @@ SET @variable = ({SQL command});
 
 ```sql
 SET @value = 12.5;
-SET @arr = LIST(11, 2.5, 'hello!', x'6120622063');
+SET @arr = [11, 2.5, 'hello!', x'6120622063'];
 SET @result = @qty * @price;
 SET @name, @price = SELECT name, price FROM products WHERE id = 123;
 SET @ids = (SELECT id FROM products WHERE price > 250);
@@ -216,7 +216,7 @@ END LOOP;
 ```
 CREATE OR REPLACE PROCEDURE sum_array() BEGIN
  SET @sum = 0;
- FOREACH @item IN LIST(11,22,33) DO
+ FOREACH @item IN [11,22,33] DO
    SET @sum = @sum + @item;
  END LOOP;
  RETURN @sum;
@@ -288,7 +288,7 @@ CALL {procedure_name} ([{expression} [, {expression}...]]);
 ```sql
 CALL compute(11, 22);
 CALL compute(@val1, @val2);
-CALL add_new_sale(LIST( LIST('iphone 14',1,1234.00), LIST('ipad',1,2345.90), LIST('iwatch',2,499.99) ));
+CALL add_new_sale([['iphone 14',1,1234.00], ['ipad',1,2345.90], ['iwatch',2,499.99]]);
 ```
 
 `CALL` 语句以与 `SELECT` 语句相同的方式返回过程返回的结果。
@@ -296,7 +296,7 @@ CALL add_new_sale(LIST( LIST('iphone 14',1,1234.00), LIST('ipad',1,2345.90), LIS
 在过程内运行时，可以将返回的值分配给变量：
 
 ```sql
-SET @sale_id = CALL add_new_sale(LIST( LIST('iphone 14',1,1234.00), LIST('ipad 12',1,2345.90) ));
+SET @sale_id = CALL add_new_sale([['iphone 14',1,1234.00], ['ipad 12',1,2345.90]]);
 ```
 
 

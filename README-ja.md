@@ -21,7 +21,7 @@ END;
 そして、それを呼び出す方法：
 
 ```sql
-CALL add_new_sale(LIST( LIST('DJI Avata',1,1168.00), LIST('iPhone 14',1,799.90), LIST('iWatch',2,249.99) ));
+CALL add_new_sale([['DJI Avata',1,1168.00], ['iPhone 14',1,799.90], ['iWatch',2,249.99]]);
 ```
 
 
@@ -106,7 +106,7 @@ SET @variable = ({SQL command});
 
 ```sql
 SET @value = 12.5;
-SET @arr = LIST(11, 2.5, 'hello!', x'6120622063');
+SET @arr = [11, 2.5, 'hello!', x'6120622063'];
 SET @result = @qty * @price;
 SET @name, @price = SELECT name, price FROM products WHERE id = 123;
 SET @ids = (SELECT id FROM products WHERE price > 250);
@@ -223,7 +223,7 @@ END LOOP;
 ```
 CREATE OR REPLACE PROCEDURE sum_array() BEGIN
  SET @sum = 0;
- FOREACH @item IN LIST(11,22,33) DO
+ FOREACH @item IN [11,22,33] DO
    SET @sum = @sum + @item;
  END LOOP;
  RETURN @sum;
@@ -295,7 +295,7 @@ CALL {procedure_name} ([{expression} [, {expression}...]]);
 ```sql
 CALL compute(11, 22);
 CALL compute(@val1, @val2);
-CALL add_new_sale(LIST( LIST('iphone 14',1,1234.00), LIST('ipad',1,2345.90), LIST('iwatch',2,499.99) ));
+CALL add_new_sale([['iphone 14',1,1234.00], ['ipad',1,2345.90], ['iwatch',2,499.99]]);
 ```
 
 `CALL`文は、`SELECT`文と同様に、プロシージャによって返される結果を返します。
@@ -303,7 +303,7 @@ CALL add_new_sale(LIST( LIST('iphone 14',1,1234.00), LIST('ipad',1,2345.90), LIS
 プロシージャ内で実行すると、返された値を変数に割り当てることができます：
 
 ```sql
-SET @sale_id = CALL add_new_sale(LIST( LIST('iphone 14',1,1234.00), LIST('ipad 12',1,2345.90) ));
+SET @sale_id = CALL add_new_sale([['iphone 14',1,1234.00], ['ipad 12',1,2345.90]]);
 ```
 
 
