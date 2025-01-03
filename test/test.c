@@ -32,8 +32,8 @@ some tests:
 - RETURN with 1 array of arrays
 - RETURN with expression
 
-- SET with ARRAY literal
-- SET with ARRAY variable
+- SET with LIST literal
+- SET with LIST variable
 - SET with SELECT / expression
 - SET with INSERT and RETURNING
 - SET with UPDATE and RETURNING
@@ -61,8 +61,8 @@ also:
 - LOOP block with RETURN
 - nested LOOP blocks
 
-- FOREACH with ARRAY literal
-- FOREACH with ARRAY variable
+- FOREACH with LIST literal
+- FOREACH with LIST variable
 - FOREACH with SELECT
 - FOREACH with INSERT and RETURNING
 - FOREACH with UPDATE and RETURNING
@@ -141,7 +141,7 @@ int main(){
     NULL
   );
 
-  db_check_many("CALL echo(ARRAY(11,2.5,'hello!',x'6120622063'))",
+  db_check_many("CALL echo(LIST(11,2.5,'hello!',x'6120622063'))",
     "11",
     "2.5",
     "hello!",
@@ -149,7 +149,7 @@ int main(){
     NULL
   );
 
-  db_check_many("CALL echo( ARRAY( 11 , 2.5 , 'hello!' , x'6120622063' ) )",
+  db_check_many("CALL echo( LIST( 11 , 2.5 , 'hello!' , x'6120622063' ) )",
     "11",
     "2.5",
     "hello!",
@@ -157,20 +157,20 @@ int main(){
     NULL
   );
 
-  db_check_many("CALL echo(ARRAY( ARRAY(1,'first',1.1), ARRAY(2,'second',2.2), ARRAY(3,'third',3.3) ))",
+  db_check_many("CALL echo(LIST( LIST(1,'first',1.1), LIST(2,'second',2.2), LIST(3,'third',3.3) ))",
     "1|first|1.1",
     "2|second|2.2",
     "3|third|3.3",
     NULL
   );
 
-  db_check_many("CALL echo( ARRAY( ARRAY(11,2.3,'hello!',x'6120622063') , ARRAY(12,2.5,'world!',x'4120422043') ) )",
+  db_check_many("CALL echo( LIST( LIST(11,2.3,'hello!',x'6120622063') , LIST(12,2.5,'world!',x'4120422043') ) )",
     "11|2.3|hello!|a b c",
     "12|2.5|world!|A B C",
     NULL
   );
 
-  db_check_many("CALL echo( ARRAY( ARRAY(11,2.3,'hello!',x'6120622063') , ARRAY(12,2.5,'world!',x'4120422043') , ARRAY(13,2.7,'bye!',x'782059207a') ) )",
+  db_check_many("CALL echo( LIST( LIST(11,2.3,'hello!',x'6120622063') , LIST(12,2.5,'world!',x'4120422043') , LIST(13,2.7,'bye!',x'782059207a') ) )",
     "11|2.3|hello!|a b c",
     "12|2.5|world!|A B C",
     "13|2.7|bye!|x Y z",
@@ -191,10 +191,10 @@ int main(){
   );
 
 
-  // RETURN with many literal arguments on different rows (ARRAY literal)
+  // RETURN with many literal arguments on different rows (LIST literal)
 #if 0
   db_execute("CREATE PROCEDURE return_array_literal() BEGIN "
-    "RETURN ARRAY(123, 2.5, 'hello world', x'4142434445');"
+    "RETURN LIST(123, 2.5, 'hello world', x'4142434445');"
     "END;"
   );
 
@@ -224,7 +224,7 @@ int main(){
   // RETURN with array of variables
 #if 0
   db_execute("CREATE PROCEDURE return_array_variables(@a, @b, @c, @d) BEGIN "
-    "RETURN ARRAY(@a, @b, @c, @d);"
+    "RETURN LIST(@a, @b, @c, @d);"
     "END;"
   );
 
@@ -262,11 +262,11 @@ int main(){
 // SET
 ////////////////////////////////////////////////////////////////////////////////
 
-  // SET with ARRAY literal
+  // SET with LIST literal
 
   db_execute(
     "CREATE PROCEDURE set_array_literal() BEGIN "
-    "SET @arr = ARRAY(11,2.5,'hello!',x'6120622063');"
+    "SET @arr = LIST(11,2.5,'hello!',x'6120622063');"
     "RETURN @arr;"
     "END;"
   );
@@ -280,7 +280,7 @@ int main(){
   );
 
 
-  // SET with ARRAY variable
+  // SET with LIST variable
 
 #if 0
   db_execute(
@@ -290,7 +290,7 @@ int main(){
     "END;"
   );
 
-  db_check_many("CALL set_array_variable( ARRAY(11,2.5,'hello!',x'6120622063') )",
+  db_check_many("CALL set_array_variable( LIST(11,2.5,'hello!',x'6120622063') )",
     "11",
     "2.5",
     "hello!",
@@ -529,7 +529,7 @@ int main(){
 
   db_execute(
     "CREATE PROCEDURE set_call_many() BEGIN "
-    "SET @a = (CALL echo(ARRAY(11,2.5,'hello!',x'6120622063')));"
+    "SET @a = (CALL echo(LIST(11,2.5,'hello!',x'6120622063')));"
     "RETURN @a;"
     "END;"
   );
@@ -838,7 +838,7 @@ int main(){
     "END"
   );
 
-  db_check_int("CALL sum_array( ARRAY(11,22,33) )", 66);
+  db_check_int("CALL sum_array( LIST(11,22,33) )", 66);
 
 
   // SET with SELECT
@@ -884,7 +884,7 @@ int main(){
     "END;"
   );
 
-  db_check_int("CALL add_sale( ARRAY( ARRAY('iphone 14',1,12390.00), ARRAY('ipad',2,5950.00), ARRAY('iwatch',2,490.00) ) )", 3);
+  db_check_int("CALL add_sale( LIST( LIST('iphone 14',1,12390.00), LIST('ipad',2,5950.00), LIST('iwatch',2,490.00) ) )", 3);
 
   db_check_many("select * from sale_items",
     "1|1|iphone 12|3|1234.9",
@@ -896,7 +896,7 @@ int main(){
   );
 
 
-  // FOREACH with ARRAY variable - 1 array per row - nested FOREACH
+  // FOREACH with LIST variable - 1 array per row - nested FOREACH
 
 #if 0
   db_execute(
@@ -912,7 +912,7 @@ int main(){
     "END;"
   );
 
-  db_check_int("CALL add_sale( ARRAY( ARRAY('iphone 15',1,12390.00), ARRAY('ipad',2,5950.00), ARRAY('iwatch',2,490.00) ) )", 4);
+  db_check_int("CALL add_sale( LIST( LIST('iphone 15',1,12390.00), LIST('ipad',2,5950.00), LIST('iwatch',2,490.00) ) )", 4);
 
   db_check_many("select * from sale_items",
     "1|1|iphone 12|3|1234.9",
@@ -928,12 +928,12 @@ int main(){
 #endif
 
 
-  // FOREACH with ARRAY literal - 1 simple value per row
+  // FOREACH with LIST literal - 1 simple value per row
 
   db_execute(
     "CREATE OR REPLACE PROCEDURE sum_array() BEGIN"
     " SET @sum = 0;"
-    " FOREACH @item IN ARRAY(11,22,33) DO"
+    " FOREACH @item IN LIST(11,22,33) DO"
     "   SET @sum = @sum + @item;"
     " END LOOP;"
     " RETURN @sum;"
@@ -943,12 +943,12 @@ int main(){
   db_check_int("CALL sum_array(  )", 66);
 
 
-  // FOREACH with ARRAY literal - 1 array per row - nested FOREACH
+  // FOREACH with LIST literal - 1 array per row - nested FOREACH
 #if 0
   db_execute(
     "CREATE OR REPLACE PROCEDURE sum_array() BEGIN"
     " SET @sum = 0;"
-    " FOREACH @item IN ARRAY( ARRAY(11,22,33), ARRAY(44,55,66) ) DO"
+    " FOREACH @item IN LIST( LIST(11,22,33), LIST(44,55,66) ) DO"
     "   FOREACH @i IN @item DO"
     "     SET @sum = @sum + @i;"
     "   END LOOP;"
@@ -1049,7 +1049,7 @@ int main(){
   db_execute(
     "CREATE OR REPLACE PROCEDURE test_call() BEGIN"
     " SET @sum = 0;"
-    " FOREACH @value IN CALL echo( ARRAY(1,2,3,4) ) DO"
+    " FOREACH @value IN CALL echo( LIST(1,2,3,4) ) DO"
     "   SET @sum = @sum + @value;"
     " END LOOP;"
     " RETURN @sum;"
@@ -1063,7 +1063,7 @@ int main(){
 
   db_execute(
     "CREATE OR REPLACE PROCEDURE set_call_many() BEGIN "
-    "SET @values = (CALL echo(ARRAY(11,2.5,'hello!',x'6120622063')));"
+    "SET @values = (CALL echo(LIST(11,2.5,'hello!',x'6120622063')));"
     "SET @ret = '';"
     "FOREACH @value IN @values DO "
     "  SET @ret = @ret || @value || ',';"
@@ -1097,7 +1097,7 @@ int main(){
   db_execute(
     "CREATE OR REPLACE PROCEDURE test_break() BEGIN"
     " SET @sum = 0;"
-    " FOREACH @value IN ARRAY(1,2,3,4) DO"
+    " FOREACH @value IN LIST(1,2,3,4) DO"
     "   SET @sum = @sum + @value;"
     "   IF @value = 2 THEN"
     "     BREAK;"
@@ -1115,7 +1115,7 @@ int main(){
   db_execute(
     "CREATE OR REPLACE PROCEDURE test_continue() BEGIN"
     " SET @sum = 0;"
-    " FOREACH @value IN ARRAY(1,2,3,4) DO"
+    " FOREACH @value IN LIST(1,2,3,4) DO"
     "   IF @value = 3 THEN"
     "     CONTINUE;"
     "   END IF;"
@@ -1133,7 +1133,7 @@ int main(){
   db_execute(
     "CREATE OR REPLACE PROCEDURE test_return() BEGIN"
     " SET @sum = 0;"
-    " FOREACH @value IN ARRAY(1,2,3,4) DO"
+    " FOREACH @value IN LIST(1,2,3,4) DO"
     "   SET @sum = @sum + @value;"
     "   IF @value = 2 THEN"
     "     RETURN @sum;"

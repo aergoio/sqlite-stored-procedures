@@ -382,17 +382,17 @@ void db_check_str_fn(sqlite3 *db, char *sql, char *expected, const char *functio
     NULL
   );
 
-  db_check_many("CALL echo(ARRAY(11,2.5,'hello!',x'6120622063'));",
+  db_check_many("CALL echo(LIST(11,2.5,'hello!',x'6120622063'));",
     "11|2.5|hello!|a b c",
     NULL
   );
 
-  db_check_many("CALL echo( ARRAY( 11 , 2.5 , 'hello!' , x'6120622063' ) );",
+  db_check_many("CALL echo( LIST( 11 , 2.5 , 'hello!' , x'6120622063' ) );",
     "11|2.5|hello!|a b c",
     NULL
   );
 
-  db_check_many("CALL echo(ARRAY( ARRAY(1,'first',1.1), ARRAY(2,'second',2.2), ARRAY(3,'third',3.3) ));",
+  db_check_many("CALL echo(LIST( LIST(1,'first',1.1), LIST(2,'second',2.2), LIST(3,'third',3.3) ));",
     "1|first|1.1",
     "2|second|2.2",
     "3|third|3.3",

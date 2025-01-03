@@ -21,7 +21,7 @@ END;
 And how to call it:
 
 ```sql
-CALL add_new_sale(ARRAY( ARRAY('DJI Avata',1,1168.00), ARRAY('iPhone 14',1,799.90), ARRAY('iWatch',2,249.99) ));
+CALL add_new_sale(LIST( LIST('DJI Avata',1,1168.00), LIST('iPhone 14',1,799.90), LIST('iWatch',2,249.99) ));
 ```
 
 
@@ -107,7 +107,7 @@ Here are some examples:
 
 ```sql
 SET @value = 12.5;
-SET @arr = ARRAY(11, 2.5, 'hello!', x'6120622063');
+SET @arr = LIST(11, 2.5, 'hello!', x'6120622063');
 SET @result = @qty * @price;
 SET @name, @price = SELECT name, price FROM products WHERE id = 123;
 SET @ids = (SELECT id FROM products WHERE price > 250);
@@ -209,8 +209,8 @@ END LOOP;
 
 The input can be one of the following:
 
-- ARRAY literal
-- ARRAY variable
+- LIST literal
+- LIST variable
 - SELECT
 - INSERT with RETURNING clause
 - UPDATE with RETURNING clause
@@ -219,19 +219,19 @@ The input can be one of the following:
 
 Here are some examples:
 
-* With ARRAY literal
+* With LIST literal
 
 ```
 CREATE OR REPLACE PROCEDURE sum_array() BEGIN
  SET @sum = 0;
- FOREACH @item IN ARRAY(11,22,33) DO
+ FOREACH @item IN LIST(11,22,33) DO
    SET @sum = @sum + @item;
  END LOOP;
  RETURN @sum;
 END
 ```
 
-* With ARRAY variable
+* With LIST variable
 
 ```
 CREATE OR REPLACE PROCEDURE sum_array(@arr) BEGIN
@@ -289,14 +289,14 @@ The arguments can be one of the following:
 
 - literal value
 - variable
-- ARRAY literal
+- LIST literal
 
 Here are some examples:
 
 ```sql
 CALL compute(11, 22);
 CALL compute(@val1, @val2);
-CALL add_new_sale(ARRAY( ARRAY('iphone 14',1,1234.00), ARRAY('ipad',1,2345.90), ARRAY('iwatch',2,499.99) ));
+CALL add_new_sale(LIST( LIST('iphone 14',1,1234.00), LIST('ipad',1,2345.90), LIST('iwatch',2,499.99) ));
 ```
 
 The `CALL` statement returns the result returned by the procedure in the same way as a `SELECT` statement.
@@ -304,7 +304,7 @@ The `CALL` statement returns the result returned by the procedure in the same wa
 When run inside of a procedure, it is possible to assign the returned value to a variable:
 
 ```sql
-SET @sale_id = CALL add_new_sale(ARRAY( ARRAY('iphone 14',1,1234.00), ARRAY('ipad 12',1,2345.90) ));
+SET @sale_id = CALL add_new_sale(LIST( LIST('iphone 14',1,1234.00), LIST('ipad 12',1,2345.90) ));
 ```
 
 
