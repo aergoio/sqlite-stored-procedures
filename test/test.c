@@ -1285,6 +1285,67 @@ int main(){
 ////////////////////////////////////////////////////////////////////////////////
 
 
+  db_execute("CREATE TABLE balances (id INTEGER PRIMARY KEY, balance INTEGER)");
+  db_execute("INSERT INTO balances (id, balance) VALUES (1, 100), (2, 0)");
+
+  db_execute(
+    "CREATE PROCEDURE transfer (@from_id, @to_id, @amount) BEGIN"
+    " ASSERT typeof(@from_id) = 'integer' AND typeof(@to_id) = 'integer', 'Account IDs must be integers';"
+    " ASSERT typeof(@amount) = 'integer', 'Amount must be an integer';"
+    " ASSERT @amount > 0, 'Amount must be greater than 0';"
+    " ASSERT @from_id <> @to_id, 'Source and destination accounts must be different';"
+    ""
+    " SET @balance = SELECT balance FROM balances WHERE id = @from_id;"
+    " ASSERT @balance IS NOT NULL, 'The source account was not found';"
+    " ASSERT @balance >= @amount, 'Not enough funds';"
+    ""
+    " SET @found = SELECT count(*) FROM balances WHERE id = @to_id;"
+    " ASSERT @found = 1, 'The destination account was not found';"
+    ""
+    " UPDATE balances SET balance = balance - @amount WHERE id = @from_id;"
+    " UPDATE balances SET balance = balance + @amount WHERE id = @to_id;"
+    "END"
+  );
+
+  db_execute("CALL transfer(1, 2, 60)");
+  db_check_int("SELECT balance FROM balances WHERE id = 1", 40);
+  db_check_int("SELECT balance FROM balances WHERE id = 2", 60);
+  db_catch_msg("CALL transfer(1, 2, 50)", "Not enough funds");
+  db_catch_msg("CALL transfer(1, 3, 10)", "The destination account was not found");
+  db_catch_msg("CALL transfer(3, 2, 10)", "The source account was not found");
+
+  // transfer the amount back
+
+  db_execute("CALL transfer(2, 1, 60)");
+  db_check_int("SELECT balance FROM balances WHERE id = 1", 100);
+  db_check_int("SELECT balance FROM balances WHERE id = 2", 0);
+
+  // same as above, but using RETURNING clause to decrease the number of queries
+
+  db_execute(
+    "CREATE PROCEDURE transfer2 (@from_id, @to_id, @amount) BEGIN"
+    " ASSERT typeof(@from_id) = 'integer' AND typeof(@to_id) = 'integer', 'Account IDs must be integers';"
+    " ASSERT typeof(@amount) = 'integer', 'Amount must be an integer';"
+    " ASSERT @amount > 0, 'Amount must be greater than 0';"
+    " ASSERT @from_id <> @to_id, 'Source and destination accounts must be different';"
+    ""
+    " SET @from_balance = UPDATE balances SET balance = balance - @amount WHERE id = @from_id RETURNING balance;"
+    " SET @dest_id = UPDATE balances SET balance = balance + @amount WHERE id = @to_id RETURNING id;"
+    ""
+    " ASSERT @from_balance IS NOT NULL, 'The source account was not found';"
+    " ASSERT @from_balance >= 0, 'Not enough funds';"
+    " ASSERT @dest_id IS NOT NULL, 'The destination account was not found';"
+    "END"
+  );
+
+  db_execute("CALL transfer2(1, 2, 60)");
+  db_check_int("SELECT balance FROM balances WHERE id = 1", 40);
+  db_check_int("SELECT balance FROM balances WHERE id = 2", 60);
+  db_catch_msg("CALL transfer2(1, 2, 50)", "Not enough funds");
+  db_catch_msg("CALL transfer2(1, 3, 10)", "The destination account was not found");
+  db_catch_msg("CALL transfer2(3, 2, 10)", "The source account was not found");
+
+////////////////////////////////////////////////////////////////////////////////
 
   // functions!
   // recursive functions
