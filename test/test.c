@@ -164,13 +164,21 @@ int main(){
     NULL
   );
 
-  db_check_many("CALL echo( [ [11,2.3,'hello!',x'6120622063'], [12,2.5,'world!',x'4120422043'] ] )",
+  db_check_many("CALL echo( [ [11,2.3,'hello!',x'6120622063'], [12,2.5,'world!',x'4120422043'], [13,2.7,'bye!',x'782059207a'] ] )",
     "11|2.3|hello!|a b c",
     "12|2.5|world!|A B C",
+    "13|2.7|bye!|x Y z",
     NULL
   );
 
-  db_check_many("CALL echo( [ [11,2.3,'hello!',x'6120622063'], [12,2.5,'world!',x'4120422043'], [13,2.7,'bye!',x'782059207a'] ] )",
+  db_check_many("CALL echo( [[11,2.3,'hello!',x'6120622063'], [12,2.5,'world!',x'4120422043'] ,[13,2.7,'bye!',x'782059207a']] )",
+    "11|2.3|hello!|a b c",
+    "12|2.5|world!|A B C",
+    "13|2.7|bye!|x Y z",
+    NULL
+  );
+
+  db_check_many("CALL echo([[11,2.3,'hello!',x'6120622063'],[12,2.5,'world!',x'4120422043'],[13,2.7,'bye!',x'782059207a']])",
     "11|2.3|hello!|a b c",
     "12|2.5|world!|A B C",
     "13|2.7|bye!|x Y z",
