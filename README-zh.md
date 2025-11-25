@@ -21,7 +21,7 @@ END;
 如何调用它：
 
 ```sql
-CALL add_new_sale(ARRAY( ARRAY('DJI Avata',1,1168.00), ARRAY('Huawei P50',1,799.90), ARRAY('Xiaomi',2,249.99) ));
+CALL add_new_sale([['DJI Avata',1,1168.00], ['Huawei P50',1,799.90], ['Xiaomi',2,249.99]]);
 ```
 
 ## 等等，但是为什么？
@@ -99,7 +99,7 @@ SET @variable = ({SQL command});
 
 ```sql
 SET @value = 12.5;
-SET @arr = ARRAY(11, 2.5, 'hello!', x'6120622063');
+SET @arr = [11, 2.5, 'hello!', x'6120622063'];
 SET @result = @qty * @price;
 SET @name, @price = SELECT name, price FROM products WHERE id = 123;
 SET @ids = (SELECT id FROM products WHERE price > 250);
@@ -201,8 +201,8 @@ END LOOP;
 
 输入可以是以下之一：
 
-- ARRAY 字面量
-- ARRAY 变量
+- LIST 字面量
+- LIST 变量
 - SELECT
 - 带有 RETURNING 子句的 INSERT
 - 带有 RETURNING 子句的 UPDATE
@@ -211,19 +211,19 @@ END LOOP;
 
 这里有一些示例：
 
-* 使用 ARRAY 字面量
+* 使用 LIST 字面量
 
 ```
 CREATE OR REPLACE PROCEDURE sum_array() BEGIN
  SET @sum = 0;
- FOREACH @item IN ARRAY(11,22,33) DO
+ FOREACH @item IN [11,22,33] DO
    SET @sum = @sum + @item;
  END LOOP;
  RETURN @sum;
 END
 ```
 
-* 使用 ARRAY 变量
+* 使用 LIST 变量
 
 ```
 CREATE OR REPLACE PROCEDURE sum_array(@arr) BEGIN
@@ -281,14 +281,14 @@ CALL {procedure_name} ([{expression} [, {expression}...]]);
 
 - 字面值
 - 变量
-- ARRAY 字面值
+- LIST 字面值
 
 以下是一些示例：
 
 ```sql
 CALL compute(11, 22);
 CALL compute(@val1, @val2);
-CALL add_new_sale(ARRAY( ARRAY('iphone 14',1,1234.00), ARRAY('ipad',1,2345.90), ARRAY('iwatch',2,499.99) ));
+CALL add_new_sale([['iphone 14',1,1234.00], ['ipad',1,2345.90], ['iwatch',2,499.99]]);
 ```
 
 `CALL` 语句以与 `SELECT` 语句相同的方式返回过程返回的结果。
@@ -296,7 +296,7 @@ CALL add_new_sale(ARRAY( ARRAY('iphone 14',1,1234.00), ARRAY('ipad',1,2345.90), 
 在过程内运行时，可以将返回的值分配给变量：
 
 ```sql
-SET @sale_id = CALL add_new_sale(ARRAY( ARRAY('iphone 14',1,1234.00), ARRAY('ipad 12',1,2345.90) ));
+SET @sale_id = CALL add_new_sale([['iphone 14',1,1234.00], ['ipad 12',1,2345.90]]);
 ```
 
 

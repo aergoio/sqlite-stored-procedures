@@ -32,8 +32,8 @@ some tests:
 - RETURN with 1 array of arrays
 - RETURN with expression
 
-- SET with ARRAY literal
-- SET with ARRAY variable
+- SET with LIST literal
+- SET with LIST variable
 - SET with SELECT / expression
 - SET with INSERT and RETURNING
 - SET with UPDATE and RETURNING
@@ -61,8 +61,8 @@ also:
 - LOOP block with RETURN
 - nested LOOP blocks
 
-- FOREACH with ARRAY literal
-- FOREACH with ARRAY variable
+- FOREACH with LIST literal
+- FOREACH with LIST variable
 - FOREACH with SELECT
 - FOREACH with INSERT and RETURNING
 - FOREACH with UPDATE and RETURNING
@@ -141,7 +141,7 @@ int main(){
     NULL
   );
 
-  db_check_many("CALL echo(ARRAY(11,2.5,'hello!',x'6120622063'))",
+  db_check_many("CALL echo([11,2.5,'hello!',x'6120622063'])",
     "11",
     "2.5",
     "hello!",
@@ -149,7 +149,7 @@ int main(){
     NULL
   );
 
-  db_check_many("CALL echo( ARRAY( 11 , 2.5 , 'hello!' , x'6120622063' ) )",
+  db_check_many("CALL echo( [ 11 , 2.5 , 'hello!' , x'6120622063' ] )",
     "11",
     "2.5",
     "hello!",
@@ -157,20 +157,28 @@ int main(){
     NULL
   );
 
-  db_check_many("CALL echo(ARRAY( ARRAY(1,'first',1.1), ARRAY(2,'second',2.2), ARRAY(3,'third',3.3) ))",
+  db_check_many("CALL echo([ [1,'first',1.1], [2,'second',2.2], [3,'third',3.3] ])",
     "1|first|1.1",
     "2|second|2.2",
     "3|third|3.3",
     NULL
   );
 
-  db_check_many("CALL echo( ARRAY( ARRAY(11,2.3,'hello!',x'6120622063') , ARRAY(12,2.5,'world!',x'4120422043') ) )",
+  db_check_many("CALL echo( [ [11,2.3,'hello!',x'6120622063'], [12,2.5,'world!',x'4120422043'], [13,2.7,'bye!',x'782059207a'] ] )",
     "11|2.3|hello!|a b c",
     "12|2.5|world!|A B C",
+    "13|2.7|bye!|x Y z",
     NULL
   );
 
-  db_check_many("CALL echo( ARRAY( ARRAY(11,2.3,'hello!',x'6120622063') , ARRAY(12,2.5,'world!',x'4120422043') , ARRAY(13,2.7,'bye!',x'782059207a') ) )",
+  db_check_many("CALL echo( [[11,2.3,'hello!',x'6120622063'], [12,2.5,'world!',x'4120422043'] ,[13,2.7,'bye!',x'782059207a']] )",
+    "11|2.3|hello!|a b c",
+    "12|2.5|world!|A B C",
+    "13|2.7|bye!|x Y z",
+    NULL
+  );
+
+  db_check_many("CALL echo([[11,2.3,'hello!',x'6120622063'],[12,2.5,'world!',x'4120422043'],[13,2.7,'bye!',x'782059207a']])",
     "11|2.3|hello!|a b c",
     "12|2.5|world!|A B C",
     "13|2.7|bye!|x Y z",
@@ -191,10 +199,10 @@ int main(){
   );
 
 
-  // RETURN with many literal arguments on different rows (ARRAY literal)
+  // RETURN with many literal arguments on different rows (LIST literal)
 #if 0
   db_execute("CREATE PROCEDURE return_array_literal() BEGIN "
-    "RETURN ARRAY(123, 2.5, 'hello world', x'4142434445');"
+    "RETURN [123, 2.5, 'hello world', x'4142434445'];"
     "END;"
   );
 
@@ -224,7 +232,7 @@ int main(){
   // RETURN with array of variables
 #if 0
   db_execute("CREATE PROCEDURE return_array_variables(@a, @b, @c, @d) BEGIN "
-    "RETURN ARRAY(@a, @b, @c, @d);"
+    "RETURN [@a, @b, @c, @d];"
     "END;"
   );
 
@@ -262,11 +270,11 @@ int main(){
 // SET
 ////////////////////////////////////////////////////////////////////////////////
 
-  // SET with ARRAY literal
+  // SET with LIST literal
 
   db_execute(
     "CREATE PROCEDURE set_array_literal() BEGIN "
-    "SET @arr = ARRAY(11,2.5,'hello!',x'6120622063');"
+    "SET @arr = [11,2.5,'hello!',x'6120622063'];"
     "RETURN @arr;"
     "END;"
   );
@@ -280,7 +288,7 @@ int main(){
   );
 
 
-  // SET with ARRAY variable
+  // SET with LIST variable
 
 #if 0
   db_execute(
@@ -290,7 +298,7 @@ int main(){
     "END;"
   );
 
-  db_check_many("CALL set_array_variable( ARRAY(11,2.5,'hello!',x'6120622063') )",
+  db_check_many("CALL set_array_variable([11,2.5,'hello!',x'6120622063'])",
     "11",
     "2.5",
     "hello!",
@@ -529,7 +537,7 @@ int main(){
 
   db_execute(
     "CREATE PROCEDURE set_call_many() BEGIN "
-    "SET @a = (CALL echo(ARRAY(11,2.5,'hello!',x'6120622063')));"
+    "SET @a = (CALL echo([11,2.5,'hello!',x'6120622063']));"
     "RETURN @a;"
     "END;"
   );
@@ -838,7 +846,7 @@ int main(){
     "END"
   );
 
-  db_check_int("CALL sum_array( ARRAY(11,22,33) )", 66);
+  db_check_int("CALL sum_array( [11,22,33] )", 66);
 
 
   // SET with SELECT
@@ -884,7 +892,7 @@ int main(){
     "END;"
   );
 
-  db_check_int("CALL add_sale( ARRAY( ARRAY('iphone 14',1,12390.00), ARRAY('ipad',2,5950.00), ARRAY('iwatch',2,490.00) ) )", 3);
+  db_check_int("CALL add_sale( [ ['iphone 14',1,12390.00], ['ipad',2,5950.00], ['iwatch',2,490.00] ] )", 3);
 
   db_check_many("select * from sale_items",
     "1|1|iphone 12|3|1234.9",
@@ -896,7 +904,7 @@ int main(){
   );
 
 
-  // FOREACH with ARRAY variable - 1 array per row - nested FOREACH
+  // FOREACH with LIST variable - 1 array per row - nested FOREACH
 
 #if 0
   db_execute(
@@ -912,7 +920,7 @@ int main(){
     "END;"
   );
 
-  db_check_int("CALL add_sale( ARRAY( ARRAY('iphone 15',1,12390.00), ARRAY('ipad',2,5950.00), ARRAY('iwatch',2,490.00) ) )", 4);
+  db_check_int("CALL add_sale( [ ['iphone 15',1,12390.00], ['ipad',2,5950.00], ['iwatch',2,490.00] ] )", 4);
 
   db_check_many("select * from sale_items",
     "1|1|iphone 12|3|1234.9",
@@ -928,12 +936,12 @@ int main(){
 #endif
 
 
-  // FOREACH with ARRAY literal - 1 simple value per row
+  // FOREACH with LIST literal - 1 simple value per row
 
   db_execute(
     "CREATE OR REPLACE PROCEDURE sum_array() BEGIN"
     " SET @sum = 0;"
-    " FOREACH @item IN ARRAY(11,22,33) DO"
+    " FOREACH @item IN [11,22,33] DO"
     "   SET @sum = @sum + @item;"
     " END LOOP;"
     " RETURN @sum;"
@@ -943,12 +951,12 @@ int main(){
   db_check_int("CALL sum_array(  )", 66);
 
 
-  // FOREACH with ARRAY literal - 1 array per row - nested FOREACH
+  // FOREACH with LIST literal - 1 array per row - nested FOREACH
 #if 0
   db_execute(
     "CREATE OR REPLACE PROCEDURE sum_array() BEGIN"
     " SET @sum = 0;"
-    " FOREACH @item IN ARRAY( ARRAY(11,22,33), ARRAY(44,55,66) ) DO"
+    " FOREACH @item IN [ [11,22,33], [44,55,66] ] DO"
     "   FOREACH @i IN @item DO"
     "     SET @sum = @sum + @i;"
     "   END LOOP;"
@@ -1049,7 +1057,7 @@ int main(){
   db_execute(
     "CREATE OR REPLACE PROCEDURE test_call() BEGIN"
     " SET @sum = 0;"
-    " FOREACH @value IN CALL echo( ARRAY(1,2,3,4) ) DO"
+    " FOREACH @value IN CALL echo( [1,2,3,4] ) DO"
     "   SET @sum = @sum + @value;"
     " END LOOP;"
     " RETURN @sum;"
@@ -1063,7 +1071,7 @@ int main(){
 
   db_execute(
     "CREATE OR REPLACE PROCEDURE set_call_many() BEGIN "
-    "SET @values = (CALL echo(ARRAY(11,2.5,'hello!',x'6120622063')));"
+    "SET @values = (CALL echo([11,2.5,'hello!',x'6120622063']));"
     "SET @ret = '';"
     "FOREACH @value IN @values DO "
     "  SET @ret = @ret || @value || ',';"
@@ -1097,7 +1105,7 @@ int main(){
   db_execute(
     "CREATE OR REPLACE PROCEDURE test_break() BEGIN"
     " SET @sum = 0;"
-    " FOREACH @value IN ARRAY(1,2,3,4) DO"
+    " FOREACH @value IN [1,2,3,4] DO"
     "   SET @sum = @sum + @value;"
     "   IF @value = 2 THEN"
     "     BREAK;"
@@ -1115,7 +1123,7 @@ int main(){
   db_execute(
     "CREATE OR REPLACE PROCEDURE test_continue() BEGIN"
     " SET @sum = 0;"
-    " FOREACH @value IN ARRAY(1,2,3,4) DO"
+    " FOREACH @value IN [1,2,3,4] DO"
     "   IF @value = 3 THEN"
     "     CONTINUE;"
     "   END IF;"
@@ -1133,7 +1141,7 @@ int main(){
   db_execute(
     "CREATE OR REPLACE PROCEDURE test_return() BEGIN"
     " SET @sum = 0;"
-    " FOREACH @value IN ARRAY(1,2,3,4) DO"
+    " FOREACH @value IN [1,2,3,4] DO"
     "   SET @sum = @sum + @value;"
     "   IF @value = 2 THEN"
     "     RETURN @sum;"
@@ -1240,8 +1248,112 @@ int main(){
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// ASSERT
+////////////////////////////////////////////////////////////////////////////////
 
 
+  // ASSERT - if the procedure is called with wrong arguments
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_assert(@a, @b) BEGIN"
+    " ASSERT @a > 0 AND @b > 0, 'a and b must be greater than 0';"
+    " RETURN @a + @b;"
+    "END"
+  );
+
+  db_check_int("CALL test_assert(1, 2)", 3);
+  db_catch_msg("CALL test_assert(-1, 2)", "a and b must be greater than 0");
+  db_catch_msg("CALL test_assert(1, -2)", "a and b must be greater than 0");
+  db_catch_msg("CALL test_assert(-1, -2)", "a and b must be greater than 0");
+
+  db_check_double("CALL test_assert(1.1, 2.2)", 3.3, 0.0001);
+  db_catch_msg("CALL test_assert(-1.1, 2.2)", "a and b must be greater than 0");
+  db_catch_msg("CALL test_assert(1.1, -2.2)", "a and b must be greater than 0");
+  db_catch_msg("CALL test_assert(-1.1, -2.2)", "a and b must be greater than 0");
+
+
+  // ASSERT with custom message
+
+  db_execute(
+    "CREATE OR REPLACE PROCEDURE test_assert_custom(@a, @b) BEGIN"
+    " ASSERT @a > 0 AND @b > 0, 'Negative arguments are not allowed: %s, %s', @a, @b;"
+    " RETURN @a + @b;"
+    "END"
+  );
+
+  db_catch_msg("CALL test_assert_custom(-1, 2)", "Negative arguments are not allowed: -1, 2");
+  db_catch_msg("CALL test_assert_custom(1, -2)", "Negative arguments are not allowed: 1, -2");
+  db_check_int("CALL test_assert_custom(1, 2)", 3);
+
+  db_catch_msg("CALL test_assert_custom(-1.1, 2.2)", "Negative arguments are not allowed: -1.1, 2.2");
+  db_catch_msg("CALL test_assert_custom(1.1, -2.2)", "Negative arguments are not allowed: 1.1, -2.2");
+  db_check_double("CALL test_assert_custom(1.1, 2.2)", 3.3, 0.0001);
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+  db_execute("CREATE TABLE balances (id INTEGER PRIMARY KEY, balance INTEGER)");
+  db_execute("INSERT INTO balances (id, balance) VALUES (1, 100), (2, 0)");
+
+  db_execute(
+    "CREATE PROCEDURE transfer (@from_id, @to_id, @amount) BEGIN"
+    " ASSERT typeof(@from_id) = 'integer' AND typeof(@to_id) = 'integer', 'Account IDs must be integers';"
+    " ASSERT typeof(@amount) = 'integer', 'Amount must be an integer';"
+    " ASSERT @amount > 0, 'Amount must be greater than 0';"
+    " ASSERT @from_id <> @to_id, 'Source and destination accounts must be different';"
+    ""
+    " SET @balance = SELECT balance FROM balances WHERE id = @from_id;"
+    " ASSERT @balance IS NOT NULL, 'The source account was not found';"
+    " ASSERT @balance >= @amount, 'Not enough funds';"
+    ""
+    " SET @found = SELECT count(*) FROM balances WHERE id = @to_id;"
+    " ASSERT @found = 1, 'The destination account was not found';"
+    ""
+    " UPDATE balances SET balance = balance - @amount WHERE id = @from_id;"
+    " UPDATE balances SET balance = balance + @amount WHERE id = @to_id;"
+    "END"
+  );
+
+  db_execute("CALL transfer(1, 2, 60)");
+  db_check_int("SELECT balance FROM balances WHERE id = 1", 40);
+  db_check_int("SELECT balance FROM balances WHERE id = 2", 60);
+  db_catch_msg("CALL transfer(1, 2, 50)", "Not enough funds");
+  db_catch_msg("CALL transfer(1, 3, 10)", "The destination account was not found");
+  db_catch_msg("CALL transfer(3, 2, 10)", "The source account was not found");
+
+  // transfer the amount back
+
+  db_execute("CALL transfer(2, 1, 60)");
+  db_check_int("SELECT balance FROM balances WHERE id = 1", 100);
+  db_check_int("SELECT balance FROM balances WHERE id = 2", 0);
+
+  // same as above, but using RETURNING clause to decrease the number of queries
+
+  db_execute(
+    "CREATE PROCEDURE transfer2 (@from_id, @to_id, @amount) BEGIN"
+    " ASSERT typeof(@from_id) = 'integer' AND typeof(@to_id) = 'integer', 'Account IDs must be integers';"
+    " ASSERT typeof(@amount) = 'integer', 'Amount must be an integer';"
+    " ASSERT @amount > 0, 'Amount must be greater than 0';"
+    " ASSERT @from_id <> @to_id, 'Source and destination accounts must be different';"
+    ""
+    " SET @from_balance = UPDATE balances SET balance = balance - @amount WHERE id = @from_id RETURNING balance;"
+    " SET @dest_id = UPDATE balances SET balance = balance + @amount WHERE id = @to_id RETURNING id;"
+    ""
+    " ASSERT @from_balance IS NOT NULL, 'The source account was not found';"
+    " ASSERT @from_balance >= 0, 'Not enough funds';"
+    " ASSERT @dest_id IS NOT NULL, 'The destination account was not found';"
+    "END"
+  );
+
+  db_execute("CALL transfer2(1, 2, 60)");
+  db_check_int("SELECT balance FROM balances WHERE id = 1", 40);
+  db_check_int("SELECT balance FROM balances WHERE id = 2", 60);
+  db_catch_msg("CALL transfer2(1, 2, 50)", "Not enough funds");
+  db_catch_msg("CALL transfer2(1, 3, 10)", "The destination account was not found");
+  db_catch_msg("CALL transfer2(3, 2, 10)", "The source account was not found");
+
+////////////////////////////////////////////////////////////////////////////////
 
   // functions!
   // recursive functions
