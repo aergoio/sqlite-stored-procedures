@@ -107,7 +107,7 @@ Here are some examples:
 
 ```sql
 SET @value = 12.5;
-SET @arr = [11, 2.5, 'hello!', x'6120622063'];
+SET @list = [11, 2.5, 'hello!', x'6120622063'];
 SET @result = @qty * @price;
 SET @name, @price = SELECT name, price FROM products WHERE id = 123;
 SET @ids = (SELECT id FROM products WHERE price > 250);
